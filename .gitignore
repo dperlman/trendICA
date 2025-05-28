@@ -62,4 +62,10 @@ coverage.xml
 dmypy.json
 
 # pytest
-.pytest_cache/ 
+.pytest_cache/
+
+# API Keys
+keys.py
+
+# Local development
+.env.local 

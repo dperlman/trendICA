@@ -9,7 +9,7 @@ import gtrend_tools
 import time
 import compress_pickle
 import sys
-
+sys.exit()
 class SearchMethod(Enum):
     TRENDSPY_LOCAL = "trendspy_local"
     TRENDSPY_TOR = "trendspy_tor" 
