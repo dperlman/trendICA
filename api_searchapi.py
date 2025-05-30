@@ -3,55 +3,48 @@ import requests
 from datetime import datetime
 from typing import Union, List, Optional
 import pandas as pd
-from utils import change_tor_identity, make_time_range
-from base_classes import API_Call
+from utils import change_tor_identity
 
-class TrendsPy(API_Call):
+class SearchAPI:
     def __init__(
         self,
+        api_key: str,
         proxy: Optional[str] = None,
         change_identity: bool = True,
         request_delay: int = 4,
         geo: str = "US",
-        cat: int = 0,
-        gprop: Optional[str] = None,
-        language: str = "en",
         verbose: bool = False,
         print_func: Optional[callable] = None,
-        tor_control_password: Optional[str] = None,
-        **kwargs
+        tor_control_password: Optional[str] = None
     ):
         """
-        Initialize the TrendsPy class.
+        Initialize the SearchAPI class.
         
         Args:
+            api_key (str): Your SearchAPI API key
             proxy (Optional[str]): The proxy to use. If None, no proxy will be used. For Tor, use "127.0.0.1:9150"
             change_identity (bool): Whether to change Tor identity between iterations. Only used if proxy is provided
             request_delay (int): Delay between requests in seconds
             geo (str): Geographic location for the search (e.g. "US"). Defaults to "US"
-            cat (int): Category for the search. Defaults to 0 (all categories)
-            gprop (Optional[str]): Google property to search. Defaults to None, which gives a web search. Options: "news", "images", "youtube", "froogle"
-            language (str): Language for the search. Defaults to "en"
             verbose (bool): Whether to print debug information
             print_func (Optional[callable]): Function to use for printing debug information
             tor_control_password (Optional[str]): Password for Tor control port. Required if change_identity is True
-            **kwargs: Additional keyword arguments to pass to the TrendsPy class
         """
-        super().__init__(**locals())
-
-        # Initialize trendspy instance
+        self.api_key = api_key
+        self.proxy = proxy
+        self.change_identity = change_identity
+        self.request_delay = request_delay
+        self.geo = geo
+        self.verbose = verbose
+        self.print_func = print_func if print_func is not None else print
+        self.tor_control_password = tor_control_password
+        
+        # Initialize searchapi instance
         try:
-            import trendspy
-            self.trends = trendspy.Trends(
-                proxy=self._get_proxy_config(),
-                request_delay=request_delay,
-                geo=geo,
-                cat=cat,
-                gprop=gprop,
-                language=language
-            )
+            import searchapi
+            self.search_client = searchapi.SearchAPI(self.api_key)
         except ImportError:
-            raise ImportError("trendspy library not installed. Please install it with 'pip install trendspy'")
+            raise ImportError("searchapi library not installed. Please install it with 'pip install searchapi'")
 
     def _get_proxy_config(self) -> Optional[dict]:
         """Get proxy configuration dictionary if proxy is set."""
@@ -78,45 +71,41 @@ class TrendsPy(API_Call):
     def search(
         self,
         search_term: Union[str, List[str]],
-        start_date: Optional[Union[str, datetime]] = None,
-        end_date: Optional[Union[str, datetime]] = None
-    ) -> pd.DataFrame:
+        time_range: Optional[str] = None
+    ) -> dict:
         """
-        Search Google Trends using the trendspy library.
+        Search using SearchAPI.
         
         Args:
-            search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
-            start_date (Optional[Union[str, datetime]]): Start date for the search
-            end_date (Optional[Union[str, datetime]]): End date for the search
+            search_term (Union[str, List[str]]): The search term(s) to look up
+            time_range (Optional[str]): Time range for the search
             
         Returns:
-            pd.DataFrame: A dataframe containing the timeseries data
+            dict: Raw search results
         """
-        self.print_func(f"Sending trendspy search request:")
+        self.print_func(f"Sending SearchAPI search request:")
         self.print_func(f"  Search term: {search_term}")
-        self.print_func(f"  Start date: {start_date if start_date else 'default'}")
-        self.print_func(f"  End date: {end_date if end_date else 'default'}")
+        self.print_func(f"  Time range: {time_range if time_range else 'default'}")
         self.print_func(f"  Proxy: {self.proxy or 'None'}")
         self.print_func(f"  Change identity: {self.change_identity}")
-        self.print_func(f"  Language: {self.language}")
         
         try:
-            # Prepare the parameters for interest_over_time
+            # Prepare the parameters for search
             params = {
-                'language': self.language,
-                'geo': self.geo,
-                'cat': self.cat,
-                'gprop': self.gprop
+                "q": search_term,
+                "gl": self.geo.lower(),
+                "num": 100  # Maximum results per page
             }
-            if start_date or end_date:
-                params['timeframe'] = make_time_range(start_date, end_date)
+            
+            if time_range:
+                params['time_period'] = time_range
             
             # If change_identity is True, change the Tor identity before the search
             if self.change_identity:
                 self.print_func("  Changing Tor identity")
                 change_tor_identity(self.tor_control_password, self.print_func)
             
-            results = self.trends.interest_over_time(search_term, return_raw=True, **params) # we want raw dicts because we will clean and standardize them all later
+            results = self.search_client.search(params)
             self.print_func("  Search successful!")
             self.print_func(results)
             
@@ -126,43 +115,44 @@ class TrendsPy(API_Call):
             self.print_func(f"  Search failed: {str(e)}")
             raise
 
-def search_trendspy(
+def search_searchapi(
     search_term: Union[str, List[str]],
-    start_date: Optional[Union[str, datetime]] = None,
-    end_date: Optional[Union[str, datetime]] = None,
+    api_key: str,
+    time_range: Optional[str] = None,
     proxy: Optional[str] = None,
     change_identity: bool = True,
     request_delay: int = 4,
     geo: str = "US",
-    cat: int = 0,
-    gprop: Optional[str] = None,
-    language: str = "en",
     verbose: bool = False,
     print_func: Optional[callable] = None,
-    tor_control_password: Optional[str] = None,
-    **kwargs
-) -> pd.DataFrame:
+    tor_control_password: Optional[str] = None
+) -> dict:
     """
-    Search Google Trends using the trendspy library.
+    Search using SearchAPI.
     
     Args:
-        search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
-        start_date (Optional[Union[str, datetime]]): Start date for the search
-        end_date (Optional[Union[str, datetime]]): End date for the search
+        search_term (Union[str, List[str]]): The search term(s) to look up
+        api_key (str): Your SearchAPI API key
+        time_range (Optional[str]): Time range for the search
         proxy (Optional[str]): The proxy to use. If None, no proxy will be used. For Tor, use "127.0.0.1:9150"
         change_identity (bool): Whether to change Tor identity between iterations. Only used if proxy is provided
         request_delay (int): Delay between requests in seconds
         geo (str): Geographic location for the search (e.g. "US"). Defaults to "US"
-        cat (int): Category for the search. Defaults to 0 (all categories)
-        gprop (Optional[str]): Google property to search. Defaults to None, which gives a web search. Options: "news", "images", "youtube", "froogle"
-        language (str): Language for the search. Defaults to "en"
         verbose (bool): Whether to print debug information
         print_func (Optional[callable]): Function to use for printing debug information
         tor_control_password (Optional[str]): Password for Tor control port. Required if change_identity is True
-        **kwargs: Additional keyword arguments to pass to the TrendsPy class
         
     Returns:
-        pd.DataFrame: A dataframe containing the timeseries data
+        dict: Raw search results
     """
-    trends = TrendsPy(**locals())
-    return trends.search(search_term, start_date, end_date) 
+    search = SearchAPI(
+        api_key=api_key,
+        proxy=proxy,
+        change_identity=change_identity,
+        request_delay=request_delay,
+        geo=geo,
+        verbose=verbose,
+        print_func=print_func,
+        tor_control_password=tor_control_password
+    )
+    return search.search(search_term, time_range) 

@@ -17,6 +17,7 @@ import json
 import yaml
 from api_trendspy import search_trendspy
 from utils import (
+    load_config,
     get_index_granularity,
     calculate_search_granularity,
     _custom_mode,
@@ -30,9 +31,7 @@ from utils import (
 class Trends:
     def __init__(
         self,
-        serpapi_api_key: Optional[str] = None,
-        serpwow_api_key: Optional[str] = None,
-        searchapi_api_key: Optional[str] = None,
+        api_keys: Optional[Dict[str, str]] = None,
         no_cache: bool = False,
         proxy: Optional[str] = None,
         change_identity: bool = True,
@@ -50,9 +49,7 @@ class Trends:
         Initialize the Trends class with configuration parameters.
         
         Args:
-            serpapi_api_key (Optional[str]): Your SerpAPI API key. If provided, will use SerpAPI
-            serpwow_api_key (Optional[str]): Your SerpWow API key. If provided, will use SerpWow
-            searchapi_api_key (Optional[str]): Your SearchApi API key. If provided, will use SearchApi
+            api_keys (Optional[Dict[str, str]]): Dictionary of API keys, e.g. {'serpapi': 'key1', 'serpwow': 'key2'}
             no_cache (bool): Whether to skip cached results (only used with SerpAPI)
             proxy (Optional[str]): The proxy to use. If None, no proxy will be used. For Tor, use "127.0.0.1:9150"
             change_identity (bool): Whether to change Tor identity between iterations. Only used if proxy is provided
@@ -68,13 +65,16 @@ class Trends:
             api (Optional[str]): Which API to use ("serpapi", "serpwow", "searchapi", or "trendspy"). If None, will auto-select based on available keys.
         """
         # Load config if it exists
-        self._load_config()
+        self.config = load_config()
         
-        # Set API keys, preferring provided keys over config
-        self.serpapi_api_key = serpapi_api_key or self.config.get('api_keys', {}).get('serpapi')
-        self.serpwow_api_key = serpwow_api_key or self.config.get('api_keys', {}).get('serpwow')
-        self.searchapi_api_key = searchapi_api_key or self.config.get('api_keys', {}).get('searchapi')
-        self.tor_control_password = self.config.get('tor', {}).get('control_password')
+        # Get API keys from config
+        self.api_keys = self.config.get('api_keys', {})
+        
+        # Update API keys with provided values
+        if api_keys:
+            for api_name, key in api_keys.items():
+                if key:  # Only update if a key was provided
+                    self.api_keys[api_name] = key
         
         # Set other parameters
         self.no_cache = no_cache
@@ -89,6 +89,7 @@ class Trends:
         self.dry_run = dry_run
         self.verbose = verbose
         self.api = api
+        self.tor_control_password = self.config.get('tor', {}).get('control_password')
         
         # Initialize search logs
         self.main_log = []
@@ -175,14 +176,6 @@ class Trends:
         else:
             search_type = "_search_with_chosen_api"
             
-        # Initialize new search log with the determined search type
-        self._initialize_new_search_log(
-            search_term=search_term,
-            time_range=time_range if time_range else f"{start_date} {end_date if end_date else 'None'}",
-            api=self._select_api(),
-            search_type=search_type
-        )
-    
         # Choose appropriate search function based on parameters
         if end_date is None:
             results = self._search_by_day_270(
@@ -718,100 +711,26 @@ class Trends:
     #     """
     #     self._log(search_term, time_range, api, granularity, error, warning)
 
-    def _initialize_new_search_log(
-        self,
-        search_term: str,
-        time_range: str,
-        api: str,
-        search_type: str
-    ) -> None:
-        """
-        Initialize a new search log.
-        """
-        formatted_utc_gmtime = time.strftime("%Y-%m-%dT%H-%MUTC", time.gmtime())
-        self.main_log = []
-        self.search_log.append({
-            "search_term": search_term,
-            "time_range": time_range,
-            "api": api,
-            "search_type": search_type,
-            "timestamp": formatted_utc_gmtime,
-            "search_log": self.main_log
-        })
-
-    def _select_api(self) -> str:
-        """
-        Determine which API to use based on available API keys.
-        
-        Returns:
-            str: The name of the API to use ("serpapi", "serpwow", "searchapi", or "trendspy")
-            
-        Raises:
-            ValueError: If the chosen API's key is not available
-        """
-        # Check if a specific API was chosen
-        if self.api is not None:  # Changed from hasattr(self, 'api') and self.api
-            if self.api == "serpapi":
-                if not self.serpapi_api_key:
-                    raise ValueError("SerpAPI key not available")
-                return "serpapi"
-            elif self.api == "serpwow":
-                if not self.serpwow_api_key:
-                    raise ValueError("SerpWow key not available")
-                return "serpwow"
-            elif self.api == "searchapi":
-                if not self.searchapi_api_key:
-                    raise ValueError("SearchAPI key not available")
-                return "searchapi"
-            elif self.api == "trendspy":
-                return "trendspy"
-            else:
-                raise ValueError(f"Invalid API specified: {self.api}. Must be one of: serpapi, serpwow, searchapi, trendspy")
-            
-        # Auto-select API based on available keys
-        if self.serpapi_api_key:
-            return "serpapi"
-        elif self.serpwow_api_key:
-            return "serpwow"
-        elif self.searchapi_api_key:
-            return "searchapi"
-        else:
-            return "trendspy"
-
-    def _search_with_chosen_api(
-        self,
-        search_term: Union[str, List[str]],
-        time_range: Optional[str] = None
-    ) -> Union[pd.DataFrame, Dict[str, Any]]:
-        """
-        Perform a search using the appropriate API based on available API keys.
-        
-        Args:
-            search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
-            time_range (Optional[str]): Time range for the search
-            
-        Returns:
-            Union[pd.DataFrame, Dict[str, Any]]: Either a DataFrame with the trends data or a dict containing an error message
-        """
-        api_name = self._select_api()
-        if api_name == "serpapi":
-            return self._search_serpapi(search_term=search_term, time_range=time_range)
-        elif api_name == "serpwow":
-            return self._search_serpwow(search_term=search_term, time_range=time_range)
-        elif api_name == "searchapi":
-            return self._search_searchapi(search_term=search_term, time_range=time_range)
-        else:  # trendspy
-            return search_trendspy(
-                search_term=search_term,
-                time_range=time_range,
-                proxy=self.proxy,
-                change_identity=self.change_identity,
-                request_delay=self.request_delay,
-                geo=self.geo,
-                cat=self.cat,
-                verbose=self.verbose,
-                print_func=self._print
-            )
+    # def _initialize_new_search_log(
+    #     self,
+    #     search_term: str,
+    #     time_range: str,
+    #     api: str,
+    #     search_type: str
+    # ) -> None:
+    #     """
+    #     Initialize a new search log.
+    #     """
+    #     formatted_utc_gmtime = time.strftime("%Y-%m-%dT%H-%MUTC", time.gmtime())
+    #     self.main_log = []
+    #     self.search_log.append({
+    #         "search_term": search_term,
+    #         "time_range": time_range,
+    #         "api": api,
+    #         "search_type": search_type,
+    #         "timestamp": formatted_utc_gmtime,
+    #         "search_log": self.main_log
+    #     })
 
     
     def _scale_stagger_groups(
@@ -980,130 +899,114 @@ class Trends:
         
         return scaled_series2
 
-
-    def _change_tor_identity(self):
-        """
-        Change the Tor identity by connecting to the Tor control port and sending a NEWNYM signal.
-        Includes error handling and retry logic.
-        """
-        try:
-            from stem.control import Controller
-            from stem import Signal
-        except ImportError:
-            print("Error: stem library not installed. Please install it with 'pip install stem'")
-            return
+    def _load_apis(self):
+        if not self.api:
+            # load trendspy as default if no API was specified
+            # later we might also load pytrends if we also want to try another approach to free access
+            try:
+                self._print("Loading trendspy as default API since no API was specified")
+                from .api_trendspy import TrendsPy
+                self.trendspy = TrendsPy(
+                    proxy=self.proxy,
+                    change_identity=self.change_identity,
+                    request_delay=self.request_delay,
+                    geo=self.geo,
+                    cat=self.cat
+                )
+            except ImportError:
+                self._print("Trendspy not available. No default API loaded. We are probably about to fail.")
+                self.api = None
+        elif self.api == "trendspy":
+            # load trendspy if possible
+            try:
+                self._print("Loading trendspy")
+                from .api_trendspy import TrendsPy
+                self.trendspy = TrendsPy(
+                    proxy=self.proxy,
+                    change_identity=self.change_identity,
+                    request_delay=self.request_delay,
+                    geo=self.geo,
+                    cat=self.cat
+                )
+            except ImportError:
+                self._print("Trendspy not available.")
+                self.api = None
+        elif self.api == "serpapi":
+            pass # we are about to add this
+        elif self.api == "serpwow":
+            pass # we are about to add this
+        elif self.api == "searchapi":
+            pass # we are about to add this
+        else:
+            raise ValueError(f"Invalid API specified: {self.api}. Must be one of: serpapi, serpwow, searchapi, trendspy")
         
-        password="controlpass" # This is the password for the Tor control port
 
-        try:
-            # Try to connect to the Tor control port
-            with Controller.from_port(port=9051) as controller:
-                # Authenticate with the controller
-                controller.authenticate(password=password)
-                
-                # Send the NEWNYM signal to change the identity
-                controller.signal(Signal.NEWNYM)
-                print("Tor identity changed successfully.")
-                
-                # Wait a moment to ensure the change takes effect
-                time.sleep(2)
-                
-        except socket.error as e:
-            print(f"Socket error connecting to Tor control port: {e}")
-            print("Make sure Tor is running with control port enabled.")
-            print("Add 'ControlPort 9051' to your torrc file and restart Tor.")
-        except Exception as e:
-            print(f"Error changing Tor identity: {e}")
+    def _select_api(self) -> str:
+        """
+        Select the appropriate API to use based on available API keys.
+        
+        Returns:
+            str: The name of the API to use ("serpapi", "serpwow", "searchapi", or "trendspy")
+            
+        Raises:
+            ValueError: If the chosen API's key is not available
+        """
+        # Check if a specific API was chosen
+        if self.api is not None:  # Changed from hasattr(self, 'api') and self.api
+            if self.api == "serpapi":
+                if not self.api_keys['serpapi']:
+                    raise PermissionError("SerpAPI key not available")
+                return "serpapi"
+            elif self.api == "serpwow":
+                if not self.api_keys['serpwow']:
+                    raise PermissionError("SerpWow key not available")
+                return "serpwow"
+            elif self.api == "searchapi":
+                if not self.api_keys['searchapi']:
+                    raise PermissionError("SearchAPI key not available")
+                return "searchapi"
+            elif self.api == "trendspy":
+                return "trendspy"
+            else:
+                raise ValueError(f"Invalid API specified: {self.api}. Must be one of: serpapi, serpwow, searchapi, trendspy")
+            
 
-    def _search_trendspy(
+    def _search_with_chosen_api(
         self,
         search_term: Union[str, List[str]],
         time_range: Optional[str] = None
-    ) -> pd.DataFrame:
+    ) -> Union[pd.DataFrame, Dict[str, Any]]:
         """
-        Search Google Trends using the trendspy library.
+        Perform a search using the appropriate API based on available API keys.
         
         Args:
             search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
             time_range (Optional[str]): Time range for the search
             
         Returns:
-            pd.DataFrame: A dataframe containing the timeseries data
+            Union[pd.DataFrame, Dict[str, Any]]: Either a DataFrame with the trends data or a dict containing an error message
         """
-        self._print(f"Sending trendspy search request:")
-        self._print(f"  Search term: {search_term}")
-        self._print(f"  Time range: {time_range if time_range else 'default'}")
-        self._print(f"  Proxy: {self.proxy or 'None'}")
-        self._print(f"  Change identity: {self.change_identity}")
-        
-        try:
-            # Format proxy for trendspy
-            proxy = None
-            if self.proxy:
-                # Add timeout and verify settings
-                proxy = {
-                    "http": f"socks5h://{self.proxy}",
-                    "https": f"socks5h://{self.proxy}"
-                }
-                # Test proxy connection before proceeding
-                try:
-                    test_response = requests.get('https://www.google.com', 
-                                              proxies=proxy, 
-                                              timeout=10)
-                    test_response.raise_for_status()
-                except Exception as e:
-                    self._print(f"  Proxy connection test failed: {str(e)}")
-                    self._print(f"  Note: If using Tor Browser, make sure it's running and the SOCKS proxy is enabled")
-                    raise ValueError(f"Failed to connect to proxy {self.proxy}: {str(e)}")
-            
-            # Create trendspy instance with retry settings
-            trends = trendspy.Trends(
-                proxy=proxy,
+        api_name = self._select_api()
+        if api_name == "serpapi":
+            return self._search_serpapi(search_term=search_term, time_range=time_range)
+        elif api_name == "serpwow":
+            return self._search_serpwow(search_term=search_term, time_range=time_range)
+        elif api_name == "searchapi":
+            return self._search_searchapi(search_term=search_term, time_range=time_range)
+        else:  # trendspy
+            return search_trendspy(
+                search_term=search_term,
+                time_range=time_range,
+                proxy=self.proxy,
+                change_identity=self.change_identity,
                 request_delay=self.request_delay,
                 geo=self.geo,
-                cat=self.cat
+                cat=self.cat,
+                verbose=self.verbose,
+                print_func=self._print,
+                tor_control_password=self.tor_control_password
             )
-            
-            # Prepare the parameters for interest_over_time
-            params = {}
-            if time_range:
-                params['timeframe'] = time_range
-            
-            # Perform the search with the appropriate parameters
-            max_retries = 1
-            retry_delay = 5
-            
-            for attempt in range(max_retries):
-                try:
-                    # If change_identity is True, change the Tor identity before each attempt
-                    if self.change_identity:
-                        self._print(f"  Changing Tor identity for attempt {attempt + 1}")
-                        self._change_tor_identity()
-                    
-                    results = trends.interest_over_time(search_term, **params)
-                    self._print("  Search successful!")
-                    
-                    # Log the search
-                    self._log(
-                        search_term=search_term,
-                        time_range=time_range if time_range else "default",
-                        api="trendspy",
-                        granularity=self._get_index_granularity(results.index)
-                    )
-                    
-                    return results
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        self._print(f"  Attempt {attempt + 1} failed: {str(e)}")
-                        self._print(f"  Retrying in {retry_delay} seconds...")
-                        time.sleep(retry_delay)
-                    else:
-                        self._print(f"  All {max_retries} attempts failed")
-                        raise
-                        
-        except Exception as e:
-            self._print(f"  Search failed: {str(e)}")
-            raise
+
 
     def _search_serpapi(
         self,
@@ -1129,7 +1032,7 @@ class Trends:
             
             # Set up the request parameters
             params = {
-                "api_key": self.serpapi_api_key,
+                "api_key": self.api_keys['serpapi'],
                 "engine": "google_trends",
                 "no_cache": str(self.no_cache).lower(),
                 "q": search_term,
@@ -1274,7 +1177,7 @@ class Trends:
             
             # Set up the request parameters
             params = {
-                'api_key': self.serpwow_api_key,
+                'api_key': self.api_keys['serpwow'],
                 'engine': 'google',
                 'search_type': 'trends',
                 'q': search_term,
@@ -1433,7 +1336,7 @@ class Trends:
             # Set up the request parameters
             params = {
                 'engine': 'google_trends',
-                'api_key': self.searchapi_api_key,
+                'api_key': self.api_keys['searchapi'],
                 'data_type': 'TIMESERIES',
                 'q': search_term,
                 'geo': self.geo,
@@ -1547,48 +1450,8 @@ class Trends:
                 start_date, end_date = _get_each_date_of_pair(point_date)
         return dates, values
 
-    def save_to_csv(
-        self,
-        combined_df: pd.DataFrame,
-        search_term: str,
-        path: Optional[str] = None,
-        comment: Optional[str] = None
-    ) -> str:
-        """Wrapper for module-level save_to_csv that uses instance verbose setting."""
-        return save_to_csv(combined_df, search_term, path, comment, self.verbose)
 
-    def _numbered_file_name(self, orig_name: str, n_digits: int = 3, path: Optional[str] = None) -> str:
-        """Wrapper for module-level _numbered_file_name."""
-        return _numbered_file_name(orig_name, n_digits, path)
 
-    def _custom_mode(self, df: pd.DataFrame, axis: int = 1) -> pd.Series:
-        """Wrapper for module-level _custom_mode."""
-        return _custom_mode(df, axis)
-
-    def _get_index_granularity(self, index: pd.DatetimeIndex) -> str:
-        """Wrapper for module-level get_index_granularity that uses instance verbose setting."""
-        return get_index_granularity(index, self.verbose)
-
-    def _calculate_search_granularity(
-        self,
-        start_date: Union[str, datetime],
-        end_date: Union[str, datetime]
-    ) -> Dict[str, Union[str, pd.DatetimeIndex]]:
-        """Wrapper for module-level calculate_search_granularity that uses instance verbose setting."""
-        return calculate_search_granularity(start_date, end_date, self.verbose)
-
-    def _load_config(self) -> None:
-        """
-        Load configuration from config.yaml if it exists and store it as an instance property.
-        If the file doesn't exist, stores an empty dict.
-        """
-        config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-        if os.path.exists(config_path):
-            with open(config_path, 'r') as f:
-                self.config = yaml.safe_load(f)
-        else:
-            self.config = {}
-            
 
 
 

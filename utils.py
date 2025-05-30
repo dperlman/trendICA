@@ -7,6 +7,21 @@ import numpy as np
 import pandas as pd
 from datetime import datetime
 from typing import Optional, Callable, Union, Dict, Tuple, Any
+import yaml
+from dateutil import parser
+
+def load_config() -> dict:
+    """
+    Load configuration from config.yaml if it exists and return it.
+    If the file doesn't exist, returns an empty dict.
+    """
+    config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
+    if os.path.exists(config_path):
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+    else:
+        config = {}
+    return config
 
 
 def change_tor_identity(password: Optional[str], print_func: Optional[Callable] = None) -> None:
@@ -395,4 +410,33 @@ def _print_if_verbose(message: str, verbose: bool = False) -> None:
             _print_if_verbose.last_caller = caller_name
             
         # Print the message
-        print(message) 
+        print(message)
+
+def make_time_range(
+    start_date: Optional[Union[str, datetime]] = None,
+    end_date: Optional[Union[str, datetime]] = None
+) -> str:
+    """
+    Convert start_date and end_date into a formatted time range string.
+    If dates are strings, they will be parsed into datetime objects.
+    The output format will be "YYYY-MM-DD YYYY-MM-DD".
+    
+    Args:
+        start_date (Optional[Union[str, datetime]]): Start date, can be string or datetime
+        end_date (Optional[Union[str, datetime]]): End date, can be string or datetime
+        
+    Returns:
+        str: Formatted time range string like "2024-01-01 2024-12-31"
+    """
+    # Convert string dates to datetime if needed
+    if isinstance(start_date, str):
+        start_date = parser.parse(start_date)
+    if isinstance(end_date, str):
+        end_date = parser.parse(end_date)
+        
+    # Format dates as YYYY-MM-DD
+    start_str = start_date.strftime("%Y-%m-%d") if start_date else ""
+    end_str = end_date.strftime("%Y-%m-%d") if end_date else ""
+    
+    # Combine into time range string
+    return f"{start_str} {end_str}".strip() 
