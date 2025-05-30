@@ -69,3 +69,6 @@ keys.py
 
 # Local development
 .env.local 
+
+# Config
+config.yaml

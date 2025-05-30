@@ -1,5 +1,3 @@
-#! /opt/miniconda3/envs/trendspy/bin/python3
-
 import unicodedata
 from typing import Dict, Any, Optional, List, Union, Tuple, Callable
 from datetime import datetime, timedelta
@@ -16,342 +14,18 @@ from scipy.optimize import minimize_scalar
 from scipy import stats
 import requests
 import json
-from keys import SERPAPI_API_KEY, SERPWOW_API_KEY, SEARCHAPI_API_KEY
-
-# Module-level variable to store the last caller
-_last_caller = None
-
-def _print_if_verbose(message: str, verbose: bool = False) -> None:
-    """
-    Print message only if verbose is True, prefixed with the caller's function name.
-    If the caller is _print, uses the caller of _print instead.
-    Only prints the caller name if it has changed from the last call.
-    
-    Args:
-        message (str): The message to print
-        verbose (bool): Whether to print the message
-    """
-    if verbose:
-        import inspect
-        global _last_caller
-        
-        # Get the caller's frame info
-        caller = inspect.currentframe().f_back
-        # Get the caller's function name
-        caller_name = caller.f_code.co_name
-        
-        # If the caller is _print, get the caller of _print instead
-        if caller_name == '_print':
-            caller = caller.f_back
-            caller_name = caller.f_code.co_name
-        
-        # Only print the caller name if it has changed
-        if caller_name != _last_caller:
-            print(f"\n[{caller_name}]")
-            _last_caller = caller_name
-            
-        # Print the message
-        print(message)
-
-
-def _get_index_granularity(index: pd.DatetimeIndex, verbose: bool = False) -> str:
-    """
-    Determine the granularity of a pandas DateTimeIndex.
-    
-    Args:
-        index (pd.DatetimeIndex): The DateTimeIndex to analyze
-        verbose (bool): Whether to print debug information
-        
-    Returns:
-        str: The granularity code ('H' for hour, 'D' for day, 'W' for week, 'M' for month)
-    """
-    # Handle empty DataFrame or non-DatetimeIndex
-    if len(index) == 0 or not isinstance(index, pd.DatetimeIndex):
-        return 'D'  # Default to daily granularity
-        
-    # First try to get the frequency directly
-    if index.freq is not None:
-        freq_str = str(index.freq)
-        if 'H' in freq_str:
-            return 'H'
-        elif 'D' in freq_str:
-            return 'D'
-        elif 'W' in freq_str:
-            return 'W'
-        elif 'M' in freq_str:
-            return 'M'
-    
-    # If no frequency is set, try to infer from time differences
-    if len(index) < 2:
-        return 'D'  # Default to day if we can't determine
-    
-    # Calculate time differences in nanoseconds
-    time_diffs = np.diff(index.astype(np.int64))
-    
-    # Print debugging information
-    _print_if_verbose("Unique time differences and their counts:", verbose)
-    _print_if_verbose(pd.Series(time_diffs).value_counts(), verbose)
-    
-    # Use pandas value_counts instead of np.bincount for memory efficiency
-    most_common_diff = pd.Series(time_diffs).value_counts().index[0]
-    _print_if_verbose(f"\nMost common difference: {most_common_diff} nanoseconds", verbose)
-    
-    # Convert to timedelta and check
-    td = pd.Timedelta(most_common_diff, unit='ns')
-    _print_if_verbose(f"Converted to timedelta: {td}", verbose)
-    
-    if td <= pd.Timedelta(hours=1):
-        return 'H'
-    elif td <= pd.Timedelta(days=1):
-        return 'D'
-    elif td <= pd.Timedelta(weeks=1):
-        return 'W'
-    else:
-        return 'M'
-
-
-def _calculate_search_granularity(
-    start_date: Union[str, datetime],
-    end_date: Union[str, datetime],
-    verbose: bool = False
-) -> Dict[str, Union[str, pd.DatetimeIndex]]:
-    """
-    Calculate the appropriate granularity for a Google Trends search based on the time range
-    and generate the corresponding DateTimeIndex.
-    
-    Args:
-        start_date (Union[str, datetime]): Start date of the search
-        end_date (Union[str, datetime]): End date of the search
-        verbose (bool): Whether to print debug information
-        
-    Returns:
-        Dict[str, Union[str, pd.DatetimeIndex]]: Dictionary containing:
-            - "granularity": The appropriate granularity to use ("day", "week", or "month")
-            - "index": A pandas DateTimeIndex with the appropriate frequency
-    """
-    # Convert dates to datetime if they're strings
-    if isinstance(start_date, str):
-        start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-    else:
-        start_dt = start_date
-        
-    if isinstance(end_date, str):
-        end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-    else:
-        end_dt = end_date
-    
-    # Calculate the time range in days
-    days_diff = (end_dt - start_dt).days
-    
-    # Determine granularity based on time range
-    if days_diff <= 270:  # Up to and including 270 days
-        granularity = "day"
-        freq = 'D'
-    elif 270 < days_diff <= 365:  # Between 270 days and 1 year
-        granularity = "week"
-        freq = 'W'
-    else:  # More than 1 year
-        granularity = "month"
-        freq = 'M'
-    
-    # Create DateTimeIndex with appropriate frequency, ensuring both start and end dates are included
-    index = pd.date_range(start=start_dt, end=end_dt, freq=freq, inclusive='both')
-    
-    if verbose:
-        _print_if_verbose(f"Granularity for date range {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')} ({days_diff} days) is {granularity}", verbose)
-    
-    return {
-        "granularity": granularity,
-        "index": index
-    }
-
-
-def _custom_mode(df: pd.DataFrame, axis: int = 1) -> pd.Series:
-    """
-    Calculate mode of a DataFrame, returning mean of modes if multiple exist.
-    
-    Args:
-        df (pd.DataFrame): Input DataFrame
-        axis (int): Axis along which to calculate mode (0 for columns, 1 for rows)
-        
-    Returns:
-        pd.Series: Series containing mode values (or mean of modes if multiple exist)
-    """
-    # Get modes using pandas mode()
-    modes = df.mode(axis=axis)
-    # Calculate mean of modes along the same axis
-    return modes.mean(axis=axis)
-
-
-def _numbered_file_name(orig_name: str, n_digits: int = 3, path: Optional[str] = None) -> str:
-    """
-    Generate a numbered filename by finding the next available number in the directory.
-    If filename ends with _i### pattern, use the next available number. If no number pattern exists,
-    add _i### pattern with specified digits. Number of digits is enforced in both cases.
-    
-    Args:
-        orig_name (str): The original filename
-        n_digits (int): Number of digits to use for the counter. Defaults to 3
-        path (str, optional): Directory path to search for existing files. Defaults to None (current directory)
-        
-    Returns:
-        str: New filename with the next available number
-    """
-    # Split the filename into base name and extension
-    base_name, ext = os.path.splitext(orig_name)
-    
-    # Remove any existing _i### pattern to get the base name
-    base_name = re.sub(r'_i\d+$', '', base_name)
-    
-    # Get all files in the specified directory
-    search_path = path if path else '.'
-    existing_files = [f for f in os.listdir(search_path) if os.path.isfile(os.path.join(search_path, f))]
-    
-    # Find the highest existing number
-    max_number = 0
-    pattern = re.compile(f"{base_name}_i(\\d+){ext}$")
-    
-    for file in existing_files:
-        match = pattern.match(file)
-        if match:
-            number = int(match.group(1))
-            max_number = max(max_number, number)
-    
-    # Use the next available number
-    next_number = max_number + 1
-    
-    # Create the new filename with _i and enforced n_digits pattern
-    new_name = f"{base_name}_i{next_number:0{n_digits}d}{ext}"
-    
-    return new_name
-
-
-def save_to_csv(
-    combined_df: pd.DataFrame,
-    search_term: str,
-    path: Optional[str] = None,
-    comment: Optional[str] = None,
-    verbose: bool = False
-) -> str:
-    """
-    Save the dataframe to a CSV file.
-    
-    Args:
-        combined_df (pd.DataFrame): The dataframe to save
-        search_term (str): The search term used to generate the data
-        path (Optional[str]): Directory path to save the file. Defaults to None (current directory)
-        comment (Optional[str]): Comment to add at the top of the file. Defaults to None
-        verbose (bool): Whether to print debug information
-        
-    Returns:
-        str: The filename that was created
-    """
-    # Create a filename with the search term and current ISO date
-    current_date = datetime.now().strftime("%Y-%m-%d")
-    formatted_utc_gmtime = time.strftime("%Y-%m-%dT%H-%MUTC", time.gmtime())
-
-    # Replace spaces with underscores in the search term for the filename
-    safe_search_term = search_term.replace(" ", "_")
-    filename = f"{safe_search_term}_at_{formatted_utc_gmtime}.csv"
-    filename = _numbered_file_name(filename, path=path)
-    
-    # Join path if provided, otherwise use filename directly
-    full_path = os.path.join(path, filename) if path else filename
-    
-    # First write the comment if provided
-    if comment:
-        with open(full_path, 'w') as f:
-            f.write(f"# {comment}\n")
-    
-    # Save the dataframe to the CSV file
-    combined_df.to_csv(full_path, index=True, mode='a')
-    _print_if_verbose(f"\nData saved to {full_path}", verbose)
-    return filename
-
-
-def _get_total_size(obj: Any, seen: Optional[set] = None) -> int:
-    """
-    Calculate the total memory size of an object, including all nested objects.
-    
-    Args:
-        obj: The object to measure
-        seen: Set of object IDs already seen (to prevent infinite recursion)
-        
-    Returns:
-        int: Total size in bytes
-    """
-    if seen is None:
-        seen = set()
-        
-    obj_id = id(obj)
-    if obj_id in seen:
-        return 0
-        
-    seen.add(obj_id)
-    size = sys.getsizeof(obj)
-    
-    # Handle different types of objects
-    if isinstance(obj, dict):
-        size += sum(_get_total_size(v, seen) + _get_total_size(k, seen) 
-                   for k, v in obj.items())
-    elif isinstance(obj, (list, tuple, set)):
-        size += sum(_get_total_size(item, seen) for item in obj)
-    elif hasattr(obj, '__dict__'):
-        # Handle custom objects
-        size += _get_total_size(obj.__dict__, seen)
-    elif hasattr(obj, 'items'):
-        # Handle pandas/numpy objects that have items() method
-        size += sum(_get_total_size(v, seen) + _get_total_size(k, seen) 
-                   for k, v in obj.items())
-        
-    return size
-
-
-def _get_start_date_of_pair(date_str: str) -> str:
-    """
-    Extract the start date from a date range string.
-    
-    Args:
-        date_str (str): Date range string in format like "Dec 31, 2023 – Jan 6, 2024" or "Jan 7 – 13, 2024"
-        
-    Returns:
-        str: The start date as a string in YYYY-MM-DD format
-        
-    Raises:
-        ValueError: If the date string cannot be parsed
-    """
-    # First clean the unicode to ascii because serpapi returns some weird unicode characters
-    date_str = unicodedata.normalize('NFKC', date_str)
-    
-    # By default we will return the original date string
-    original_date_str = date_str
-    
-    parts = date_str.split(" – ")
-    
-    # Handle case with full date range (e.g. "Dec 31, 2023 – Jan 6, 2024")
-    if "," in parts[0]:
-        original_date_str = parts[0]
-    elif len(parts) == 2:
-        start_date = parts[0]
-        # Extract year from end date
-        year = parts[1].split(", ")[1]
-        original_date_str = f"{start_date}, {year}"
-        
-    # Convert the date string to basically ISO format
-    try:
-        datetime_object = datetime.strptime(original_date_str, "%b %d, %Y")
-    except ValueError:
-        try:
-            datetime_object = datetime.strptime(original_date_str, "%m/%d/%Y")
-        except ValueError:
-            try:
-                datetime_object = datetime.strptime(original_date_str, "%b %Y")
-            except ValueError:
-                raise ValueError(f"Could not parse date string: {original_date_str}")
-    
-    output_date_str = datetime_object.strftime("%Y-%m-%d")
-    return output_date_str
-
+import yaml
+from api_trendspy import search_trendspy
+from utils import (
+    get_index_granularity,
+    calculate_search_granularity,
+    _custom_mode,
+    _numbered_file_name,
+    save_to_csv,
+    _get_total_size,
+    _get_each_date_of_pair,
+    _print_if_verbose
+)
 
 class Trends:
     def __init__(
@@ -371,7 +45,7 @@ class Trends:
         dry_run: bool = False,
         verbose: bool = False,
         api: Optional[str] = None
-    ):
+    ) -> None:
         """
         Initialize the Trends class with configuration parameters.
         
@@ -380,7 +54,7 @@ class Trends:
             serpwow_api_key (Optional[str]): Your SerpWow API key. If provided, will use SerpWow
             searchapi_api_key (Optional[str]): Your SearchApi API key. If provided, will use SearchApi
             no_cache (bool): Whether to skip cached results (only used with SerpAPI)
-            proxy (Optional[str]): The proxy to use. If None, no proxy will be used
+            proxy (Optional[str]): The proxy to use. If None, no proxy will be used. For Tor, use "127.0.0.1:9150"
             change_identity (bool): Whether to change Tor identity between iterations. Only used if proxy is provided
             request_delay (int): Delay between requests in seconds
             geo (str): Geographic location for the search (e.g. "US"). Defaults to "US"
@@ -393,10 +67,16 @@ class Trends:
             verbose (bool): If True, prints detailed information about the search process. Defaults to False.
             api (Optional[str]): Which API to use ("serpapi", "serpwow", "searchapi", or "trendspy"). If None, will auto-select based on available keys.
         """
-        # Use provided keys or fall back to defaults from keys.py
-        self.serpapi_api_key = serpapi_api_key if serpapi_api_key is not None else SERPAPI_API_KEY
-        self.serpwow_api_key = serpwow_api_key if serpwow_api_key is not None else SERPWOW_API_KEY
-        self.searchapi_api_key = searchapi_api_key if searchapi_api_key is not None else SEARCHAPI_API_KEY
+        # Load config if it exists
+        self._load_config()
+        
+        # Set API keys, preferring provided keys over config
+        self.serpapi_api_key = serpapi_api_key or self.config.get('api_keys', {}).get('serpapi')
+        self.serpwow_api_key = serpwow_api_key or self.config.get('api_keys', {}).get('serpwow')
+        self.searchapi_api_key = searchapi_api_key or self.config.get('api_keys', {}).get('searchapi')
+        self.tor_control_password = self.config.get('tor', {}).get('control_password')
+        
+        # Set other parameters
         self.no_cache = no_cache
         self.proxy = proxy
         self.change_identity = change_identity
@@ -408,8 +88,13 @@ class Trends:
         self.language = language
         self.dry_run = dry_run
         self.verbose = verbose
-        self.search_log = []  # List to store search information
-        self.api = api  # Store the chosen API
+        self.api = api
+        
+        # Initialize search logs
+        self.main_log = []
+        self.error_log = []
+        self.warning_log = []
+        self.rate_limit_log = []
 
 
     def search(
@@ -419,17 +104,17 @@ class Trends:
         end_date: Optional[str] = None,
         duration_days: Optional[int] = 90,
         granularity: str = "day",
-        n_iterations: int = 1,
         stagger: int = 0,
         trim: bool = True,
         scale: bool = True,
         combine: str = "median",
         final_scale: bool = True,
         round: int = 2,
-        method: str = "MAD"
+        method: str = "MAD",
+        raw_groups: bool = False
     ) -> pd.DataFrame:
         """
-        Search Google Trends for a given query, with optional multiple iterations.
+        Search Google Trends for a given query.
         
         Args:
             search_term (str): The search term to look up in Google Trends
@@ -437,7 +122,6 @@ class Trends:
             end_date (Optional[str]): End date for the search (e.g. "2025-04-21")
             duration_days (Optional[int]): Number of days to search from start_date if end_date not provided
             granularity (str): Time granularity for results, either "day" or "hour". Any other value will use the default API behavior.
-            n_iterations (int): Number of times to perform the search. Defaults to 1
             stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
                           2 means 67% overlap, etc.
             trim (bool): Whether to drop rows with NA values because of the staggering. Defaults to True.
@@ -446,14 +130,10 @@ class Trends:
             final_scale (bool): Whether to scale the final result so maximum value is 100. Defaults to True.
             round (int): Number of decimal places to round values to. Defaults to 2.
             method (str): Method to use for scaling overlapping intervals. Options are 'SSD' or 'MAD'. Defaults to 'MAD'.
+            raw_groups (bool): If True, returns the raw stagger groups without concatenating. Defaults to False.
             
         Returns:
             pd.DataFrame: DataFrame containing the Google Trends data
-            
-        Note:
-            - If n_iterations > 1, the results will be combined using the specified combine method
-            - The combine method can be "mean", "median", or "mode"
-            - All other parameters are passed through to the underlying search methods
         """
         # Validate combine parameter
         if combine not in ["none", "mean", "median", "mode"]:
@@ -472,7 +152,6 @@ class Trends:
             f"  Start date: {start_date}\n"
             f"  End date: {end_date if end_date else 'None (using duration_days=' + str(duration_days) + ')'}\n"
             f"  Granularity: {granularity}\n"
-            f"  Iterations: {n_iterations}\n"
             f"  Stagger: {stagger}\n"
             f"  Scale: {scale}\n"
             f"  Combine: {combine}\n"
@@ -486,87 +165,127 @@ class Trends:
         message += f"\n  Using API: {api_name}"
         self._print(message)
         
-        all_timeseries = []
-        self._print(f"Collecting {n_iterations} timeseries for '{search_term}'...")
+        # Determine which search method will be used and initialize log
+        if end_date is None:
+            search_type = "search_by_day_270"
+        elif granularity == "day":
+            search_type = "search_by_day"
+        elif granularity == "hour":
+            search_type = "search_by_hour"
+        else:
+            search_type = "_search_with_chosen_api"
+            
+        # Initialize new search log with the determined search type
+        self._initialize_new_search_log(
+            search_term=search_term,
+            time_range=time_range if time_range else f"{start_date} {end_date if end_date else 'None'}",
+            api=self._select_api(),
+            search_type=search_type
+        )
     
-        for i in range(n_iterations):
-            self._print(f"Iteration {i+1}/{n_iterations}")
-        
-            # Choose appropriate search function based on parameters
-            if end_date is None:
-                iteration_results = self.search_by_day_270(
-                    search_term=search_term,
-                    start_date=start_date
-                )
-            elif granularity == "day":
-                iteration_results = self.search_by_day(
-                    search_term=search_term,
-                    time_range=time_range,
-                    stagger=stagger,
-                    trim=trim,
-                    scale=scale,
-                    combine=combine,
-                    final_scale=final_scale,
-                    round=round,
-                    method=method
-                )
-            elif granularity == "hour":
-                iteration_results = self.search_by_hour(
-                    search_term=search_term,
-                    time_range=time_range
-                )
-            else:
-                iteration_results = self._search_with_chosen_api(
-                    search_term=search_term,
-                    time_range=time_range
-                )
-        
-            all_timeseries.append(iteration_results)
-    
-        # If only one iteration, return the single result
-        if n_iterations == 1:
-            return all_timeseries[0]
-    
-        # Combine multiple iterations into a single dataframe
-        combined_df = pd.DataFrame()
-        safe_search_term = search_term.replace(" ", "_")
-
-        for i, df in enumerate(all_timeseries):
-            if 'isPartial' in df.columns:
-                df = df.drop(columns=['isPartial'])
-            combined_df[f"iter_{i+1}"] = df[safe_search_term]
-
-        self._print(f"Combined df for '{search_term}' shape: {combined_df.shape}")
-        
-        # Combine columns using the specified method
-        if combine == "mean":
-            result = pd.DataFrame(combined_df.mean(axis=1), columns=[safe_search_term])
-        elif combine == "median":
-            result = pd.DataFrame(combined_df.median(axis=1), columns=[safe_search_term])
-        elif combine == "mode":
-            result = pd.DataFrame(self._custom_mode(combined_df, axis=1), 
-                                index=combined_df.index,
-                                columns=[safe_search_term])
-        elif combine == "none":
-            result = combined_df
+        # Choose appropriate search function based on parameters
+        if end_date is None:
+            results = self._search_by_day_270(
+                search_term=search_term,
+                start_date=start_date
+            )
+        elif granularity == "day":
+            results = self._search_by_day(
+                search_term=search_term,
+                time_range=time_range,
+                stagger=stagger,
+                trim=trim,
+                scale=scale,
+                combine=combine,
+                final_scale=final_scale,
+                round=round,
+                method=method,
+                raw_groups=raw_groups
+            )
+        elif granularity == "hour":
+            results = self._search_by_hour(
+                search_term=search_term,
+                time_range=time_range
+            )
+        else:
+            results = self._search_with_chosen_api(
+                search_term=search_term,
+                time_range=time_range
+            )
 
         # Print search log summary
         prefix = "[DRY RUN] " if self.dry_run else ""
         message = (
             f"\n{prefix}Search Summary:\n"
-            f"Total searches performed: {len(self.search_log)}\n"
+            f"Total searches performed: {len(self.main_log)}\n"
             f"API used: {api_name}\n"
             "\nSearch details:"
         )
-        for i, log in enumerate(self.search_log, 1):
+        for i, log in enumerate(self.main_log, 1):
             error_str = f" [ERROR: {log['error']}]" if 'error' in log else ""
             warning_str = f" [WARNING: {log['warning']}]" if 'warning' in log else ""
             message += f"\nSearch {i}: {log['search_term']} | {log['time_range']} | {log['api']} | {log['granularity']}{error_str}{warning_str}"
         self._print(message)
         
-        return result
+        return results
 
     def search_by_day(
+        self,
+        search_term: str,
+        time_range: str,
+        stagger: int = 0,
+        trim: bool = True,
+        scale: bool = True,
+        combine: str = "median",
+        final_scale: bool = True,
+        round: int = 2,
+        method: str = "MAD",
+        raw_groups: bool = False
+    ) -> Union[pd.DataFrame, List[List[pd.DataFrame]], Dict[str, str], List[datetime]]:
+        """
+        Perform a Google Trends search with daily granularity over multiple 270-day intervals.
+        
+        Args:
+            search_term (str): The search term to look up in Google Trends
+            time_range (str): Time range for the search (e.g. "2008-01-01 2025-04-21")
+            stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
+                          2 means 67% overlap, etc.
+            trim (bool): Whether to drop rows with NA values because of the staggering. Defaults to True.
+            scale (bool): Whether to scale overlapping intervals. Defaults to True.
+            combine (str): How to combine multiple columns. Options are "none", "mean", "median", or "mode". Defaults to "median".
+            final_scale (bool): Whether to scale the final result so maximum value is 100. Defaults to True.
+            round (int): Number of decimal places to round values to. Defaults to 2.
+            method (str): Method to use for scaling overlapping intervals. Options are 'SSD' or 'MAD'. Defaults to 'MAD'.
+            raw_groups (bool): If True, returns the raw stagger groups without concatenating. Defaults to False.
+            
+        Returns:
+            Union[pd.DataFrame, List[List[pd.DataFrame]], Dict[str, str], List[datetime]]: 
+                - If raw_groups is True: Returns the raw stagger groups
+                - If dry_run is True: Returns a processed DataFrame with dummy data (zero values)
+                - If an error occurs: Returns a dictionary with error information
+                - Otherwise: Returns a processed DataFrame with the combined and scaled results
+        """
+        # Parse time range to get start and end dates
+        start_date, end_date = time_range.split()
+        
+        # Call search() with appropriate parameters
+        return self.search(
+            search_term=search_term,
+            start_date=start_date,
+            end_date=end_date,
+            granularity="day",
+            n_iterations=1,  # search_by_day doesn't support multiple iterations
+            stagger=stagger,
+            trim=trim,
+            scale=scale,
+            combine=combine,
+            final_scale=final_scale,
+            round=round,
+            method=method,
+            raw_groups=raw_groups
+        )
+
+    def _search_by_day(
         self,
         search_term: str,
         time_range: str,
@@ -648,14 +367,14 @@ class Trends:
                 date_range = pd.date_range(start=start_dt, end=end_dt, freq='D')
                 result = pd.DataFrame(0, index=date_range, columns=[search_term.replace(" ", "_")])
             else:
-                result = self.search_by_day_270(
+                result = self._search_by_day_270(
                     search_term=search_term,
                     start_date=start_dt
                 )
             return result
         
         # For ranges longer than 270 days, use staggered searches
-        stagger_groups = self.search_staggered(
+        stagger_groups = self._search_staggered(
             search_term=search_term,
             start_dt=start_dt,
             end_dt=end_dt,
@@ -706,11 +425,11 @@ class Trends:
             prefix = "[DRY RUN] " if self.dry_run else ""
             message = (
                 f"\n{prefix}Search Summary:\n"
-                f"Total searches performed: {len(self.search_log)}\n"
+                f"Total searches performed: {len(self.main_log)}\n"
                 f"API used: {self._select_api()}\n"
                 "\nSearch details:"
             )
-            for i, log in enumerate(self.search_log, 1):
+            for i, log in enumerate(self.main_log, 1):
                 error_str = f" [ERROR: {log['error']}]" if 'error' in log else ""
                 warning_str = f" [WARNING: {log['warning']}]" if 'warning' in log else ""
                 message += f"\nSearch {i}: {log['search_term']} | {log['time_range']} | {log['api']} | {log['granularity']}{error_str}{warning_str}"
@@ -719,7 +438,7 @@ class Trends:
             return result_df
         return pd.DataFrame()
 
-    def search_by_day_270(
+    def _search_by_day_270(
         self,
         search_term: str,
         start_date: Union[str, datetime]
@@ -754,6 +473,12 @@ class Trends:
         # Get the API name for logging
         api_name = self._select_api()
         
+        if self.dry_run:
+            # Create a date range with daily frequency
+            date_range = pd.date_range(start=start_dt, end=end_dt, freq='D')
+            result = pd.DataFrame(0, index=date_range, columns=[search_term.replace(" ", "_")])
+            return result
+        
         # Perform the search using the chosen API
         results = self._search_with_chosen_api(
             search_term=search_term,
@@ -771,7 +496,7 @@ class Trends:
                 self._print(f"  Time range: {time_range}")
                 self._print(f"  API used: {api_name}")
                 # Log the warning
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range,
                     api=api_name,
@@ -781,7 +506,7 @@ class Trends:
         
         return results
 
-    def search_by_hour(
+    def _search_by_hour(
         self,
         search_term: str,
         time_range: str
@@ -810,7 +535,7 @@ class Trends:
 
         if self.dry_run:
             # Create a date range with hourly frequency
-            date_range = pd.date_range(start=start_dt, end=end_dt, freq='H')
+            date_range = pd.date_range(start=start_dt, end=end_dt, freq='h')
             result = pd.DataFrame(0, index=date_range, columns=[search_term.replace(" ", "_")])
             return result
 
@@ -829,7 +554,7 @@ class Trends:
         
         return results
 
-    def search_staggered(
+    def _search_staggered(
         self,
         search_term: str,
         start_dt: datetime,
@@ -899,7 +624,7 @@ class Trends:
                     interval_range = pd.date_range(start=current_start, end=interval_end, freq='D')
                     result = pd.DataFrame(0, index=interval_range, columns=[search_term.replace(" ", "_")])
                 else:
-                    result = self.search_by_day_270(
+                    result = self._search_by_day_270(
                         search_term=search_term,
                         start_date=current_start
                     )
@@ -937,7 +662,7 @@ class Trends:
         """
         _print_if_verbose(*args, **kwargs, verbose=self.verbose)
 
-    def _log_api_search(
+    def _log(
         self,
         search_term: str,
         time_range: str,
@@ -953,7 +678,7 @@ class Trends:
             search_term (str): The search term used
             time_range (str): The time range string sent to the API
             api (str): The API used for the search ("SerpAPI", "SerpWow", or "trendspy")
-            granularity (str): The granularity of the data ('H', 'D', 'W', or 'M')
+            granularity (str): The granularity of the data ('h' for hour, 'D' for day, 'W' for week, or 'ME' for month end)
             error (Optional[str]): Any error message if the search failed
             warning (Optional[str]): Any warning message about the search results
         """
@@ -969,30 +694,50 @@ class Trends:
             log_entry["error"] = error
         if warning:
             log_entry["warning"] = warning
-        self.search_log.append(log_entry)
+        self.main_log.append(log_entry)
 
-    def _log_search(
+    # def _log_search(
+    #     self,
+    #     search_term: str,
+    #     time_range: str,
+    #     api: str,
+    #     granularity: Optional[str] = None,
+    #     error: Optional[str] = None,
+    #     warning: Optional[str] = None
+    # ) -> None:
+    #     """
+    #     Log a search attempt with its details and any errors.
+        
+    #     Args:
+    #         search_term (str): The search term used
+    #         time_range (str): The time range string sent to the API
+    #         api (str): The API used for the search ("SerpAPI", "SerpWow", or "trendspy")
+    #         granularity (str): The granularity of the data ('H', 'D', 'W', or 'M')
+    #         error (Optional[str]): Any error message if the search failed
+    #         warning (Optional[str]): Any warning message about the search results
+    #     """
+    #     self._log(search_term, time_range, api, granularity, error, warning)
+
+    def _initialize_new_search_log(
         self,
         search_term: str,
         time_range: str,
         api: str,
-        granularity: str,
-        error: Optional[str] = None,
-        warning: Optional[str] = None
+        search_type: str
     ) -> None:
         """
-        Log a search attempt with its details and any errors.
-        
-        Args:
-            search_term (str): The search term used
-            time_range (str): The time range string sent to the API
-            api (str): The API used for the search ("SerpAPI", "SerpWow", or "trendspy")
-            granularity (str): The granularity of the data ('H', 'D', 'W', or 'M')
-            error (Optional[str]): Any error message if the search failed
-            warning (Optional[str]): Any warning message about the search results
+        Initialize a new search log.
         """
-        self._log_api_search(search_term, time_range, api, granularity, error, warning)
-
+        formatted_utc_gmtime = time.strftime("%Y-%m-%dT%H-%MUTC", time.gmtime())
+        self.main_log = []
+        self.search_log.append({
+            "search_term": search_term,
+            "time_range": time_range,
+            "api": api,
+            "search_type": search_type,
+            "timestamp": formatted_utc_gmtime,
+            "search_log": self.main_log
+        })
 
     def _select_api(self) -> str:
         """
@@ -1056,7 +801,17 @@ class Trends:
         elif api_name == "searchapi":
             return self._search_searchapi(search_term=search_term, time_range=time_range)
         else:  # trendspy
-            return self._search_trendspy(search_term=search_term, time_range=time_range)
+            return search_trendspy(
+                search_term=search_term,
+                time_range=time_range,
+                proxy=self.proxy,
+                change_identity=self.change_identity,
+                request_delay=self.request_delay,
+                geo=self.geo,
+                cat=self.cat,
+                verbose=self.verbose,
+                print_func=self._print
+            )
 
     
     def _scale_stagger_groups(
@@ -1315,7 +1070,7 @@ class Trends:
                 params['timeframe'] = time_range
             
             # Perform the search with the appropriate parameters
-            max_retries = 3
+            max_retries = 1
             retry_delay = 5
             
             for attempt in range(max_retries):
@@ -1329,7 +1084,7 @@ class Trends:
                     self._print("  Search successful!")
                     
                     # Log the search
-                    self._log_api_search(
+                    self._log(
                         search_term=search_term,
                         time_range=time_range if time_range else "default",
                         api="trendspy",
@@ -1393,6 +1148,7 @@ class Trends:
             # Make the API request
             search = GoogleSearch(params)
             data = search.get_dict()
+            return data
             # # Print the full response for debugging
             # self._print("\nFull API response:")
             # self._print(json.dumps(data, indent=2)[:10000])  # Increased from 2000 to 10000
@@ -1400,7 +1156,7 @@ class Trends:
             if isinstance(data, dict) and "error" in data:
                 error_msg = data["error"]
                 self._print(f"  Search failed: {error_msg}")
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range if time_range else "default",
                     api="serpapi",
@@ -1416,7 +1172,7 @@ class Trends:
                 if not timeline_data:
                     error_msg = "No trends data found in response"
                     self._print(f"  Search failed: {error_msg}")
-                    self._log_api_search(
+                    self._log(
                         search_term=search_term,
                         time_range=time_range if time_range else "default",
                         api="serpapi",
@@ -1450,7 +1206,7 @@ class Trends:
                 self._print("  Search successful!")
                 
                 # Log the search
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range if time_range else "default",
                     api="serpapi",
@@ -1461,7 +1217,7 @@ class Trends:
             else:
                 error_msg = "No trends data found in response"
                 self._print(f"  Search failed: {error_msg}")
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range if time_range else "default",
                     api="serpapi",
@@ -1472,7 +1228,7 @@ class Trends:
                 
         except Exception as e:
             self._print(f"  Search failed: {str(e)}")
-            self._log_api_search(
+            self._log(
                 search_term=search_term,
                 time_range=time_range if time_range else "default",
                 api="serpapi",
@@ -1559,7 +1315,7 @@ class Trends:
             if 'error' in data:
                 error_msg = data['error']
                 self._print(f"  Search failed: {error_msg}")
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                     api="serpwow",
@@ -1575,7 +1331,7 @@ class Trends:
                 if not timeline_data:
                     error_msg = "No trends data found in response"
                     self._print(f"  Search failed: {error_msg}")
-                    self._log_api_search(
+                    self._log(
                         search_term=search_term,
                         time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                         api="serpwow",
@@ -1609,7 +1365,7 @@ class Trends:
                 self._print("  Search successful!")
                 
                 # Log the search
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                     api="serpwow",
@@ -1620,7 +1376,7 @@ class Trends:
             else:
                 error_msg = "No trends data found in response"
                 self._print(f"  Search failed: {error_msg}")
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                     api="serpwow",
@@ -1631,7 +1387,7 @@ class Trends:
                 
         except Exception as e:
             self._print(f"  Search failed: {str(e)}")
-            self._log_api_search(
+            self._log(
                 search_term=search_term,
                 time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                 api="serpwow",
@@ -1712,7 +1468,7 @@ class Trends:
                 if not timeline_data:
                     error_msg = "No trends data found in response"
                     self._print(f"  Search failed: {error_msg}")
-                    self._log_api_search(
+                    self._log(
                         search_term=search_term,
                         time_range=time_range if time_range else "default",
                         api="searchapi",
@@ -1746,7 +1502,7 @@ class Trends:
                 self._print("  Search successful!")
                 
                 # Log the search
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range if time_range else "default",
                     api="searchapi",
@@ -1757,7 +1513,7 @@ class Trends:
             else:
                 error_msg = "No trends data found in response"
                 self._print(f"  Search failed: {error_msg}")
-                self._log_api_search(
+                self._log(
                     search_term=search_term,
                     time_range=time_range if time_range else "default",
                     api="searchapi",
@@ -1768,7 +1524,7 @@ class Trends:
                 
         except Exception as e:
             self._print(f"  Search failed: {str(e)}")
-            self._log_api_search(
+            self._log(
                 search_term=search_term,
                 time_range=time_range if time_range else "default",
                 api="searchapi",
@@ -1776,6 +1532,20 @@ class Trends:
                 error=str(e)
             )
             raise
+
+    def _get_date_series(self, data: dict) -> pd.DataFrame:
+        dates = []
+        start_dates = []
+        end_dates = []
+        values = []
+
+        if 'interest_over_time' in data and 'timeline_data' in data['interest_over_time']:
+            timeline_data = data['interest_over_time']['timeline_data']
+            for point in timeline_data:
+                values.append(v['extracted_value'] for v in point['values'])
+                point_date = unicodedata.normalize('NFKC', point['date'])
+                start_date, end_date = _get_each_date_of_pair(point_date)
+        return dates, values
 
     def save_to_csv(
         self,
@@ -1796,16 +1566,29 @@ class Trends:
         return _custom_mode(df, axis)
 
     def _get_index_granularity(self, index: pd.DatetimeIndex) -> str:
-        """Wrapper for module-level _get_index_granularity that uses instance verbose setting."""
-        return _get_index_granularity(index, self.verbose)
+        """Wrapper for module-level get_index_granularity that uses instance verbose setting."""
+        return get_index_granularity(index, self.verbose)
 
     def _calculate_search_granularity(
         self,
         start_date: Union[str, datetime],
         end_date: Union[str, datetime]
     ) -> Dict[str, Union[str, pd.DatetimeIndex]]:
-        """Wrapper for module-level _calculate_search_granularity that uses instance verbose setting."""
-        return _calculate_search_granularity(start_date, end_date, self.verbose)
+        """Wrapper for module-level calculate_search_granularity that uses instance verbose setting."""
+        return calculate_search_granularity(start_date, end_date, self.verbose)
+
+    def _load_config(self) -> None:
+        """
+        Load configuration from config.yaml if it exists and store it as an instance property.
+        If the file doesn't exist, stores an empty dict.
+        """
+        config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
+        else:
+            self.config = {}
+            
 
 
 
