@@ -3,28 +3,15 @@ from typing import Dict, Any, Optional, List, Union, Tuple, Callable
 from datetime import datetime, timedelta
 import time
 import pandas as pd
-import socket
-import os
-import sys
-import re
 import math
 import numpy as np
 from scipy.optimize import minimize_scalar
-from scipy import stats
-import requests
-import json
-import yaml
 from dateutil.parser import parse
 
 from utils import (
     load_config,
     get_index_granularity,
-    calculate_search_granularity,
     _custom_mode,
-    _numbered_file_name,
-    save_to_csv,
-    _get_total_size,
-    _get_each_date_of_pair,
     _print_if_verbose
 )
 
@@ -251,7 +238,8 @@ class Trends:
     def search_by_day(
         self,
         search_term: str,
-        time_range: str,
+        start_date: Union[str, datetime],
+        end_date: Union[str, datetime],
         stagger: int = 0,
         trim: bool = True,
         scale: bool = True,
@@ -262,16 +250,17 @@ class Trends:
         raw_groups: bool = False
     ) -> Union[pd.DataFrame, List[List[pd.DataFrame]], Dict[str, str], List[datetime]]:
         """
-        Perform a Google Trends search with daily granularity over multiple 270-day intervals.
+        Perform a Google Trends search with daily granularity.
         
         Args:
             search_term (str): The search term to look up in Google Trends
-            time_range (str): Time range for the search (e.g. "2008-01-01 2025-04-21")
+            start_date (Union[str, datetime]): Start date for the search
+            end_date (Optional[Union[str, datetime]]): End date for the search
             stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
                           2 means 67% overlap, etc.
             trim (bool): Whether to drop rows with NA values because of the staggering. Defaults to True.
             scale (bool): Whether to scale overlapping intervals. Defaults to True.
-            combine (str): How to combine multiple columns. Options are "none", "mean", "median", or "mode". Defaults to "median".
+            combine (str): How to combine multiple columns. Options are "mean", "median", or "mode". Defaults to "median".
             final_scale (bool): Whether to scale the final result so maximum value is 100. Defaults to True.
             round (int): Number of decimal places to round values to. Defaults to 2.
             method (str): Method to use for scaling overlapping intervals. Options are 'SSD' or 'MAD'. Defaults to 'MAD'.
@@ -284,16 +273,15 @@ class Trends:
                 - If an error occurs: Returns a dictionary with error information
                 - Otherwise: Returns a processed DataFrame with the combined and scaled results
         """
-        # Parse time range to get start and end dates
-        start_date, end_date = time_range.split()
+        # Convert dates to datetime objects if they're strings
+        start_dt = parse(start_date) if isinstance(start_date, str) else start_date
+        end_dt = parse(end_date) if isinstance(end_date, str) and end_date else None
+
         
-        # Call search() with appropriate parameters
-        return self.search(
+        return self._search_by_day(
             search_term=search_term,
-            start_date=start_date,
-            end_date=end_date,
-            granularity="day",
-            n_iterations=1,  # search_by_day doesn't support multiple iterations
+            start_date=start_dt,
+            end_date=end_dt,
             stagger=stagger,
             trim=trim,
             scale=scale,
@@ -307,7 +295,8 @@ class Trends:
     def _search_by_day(
         self,
         search_term: str,
-        time_range: str,
+        start_date: Union[str, datetime],
+        end_date: Union[str, datetime],
         stagger: int = 0,
         trim: bool = True,
         scale: bool = True,
@@ -318,16 +307,17 @@ class Trends:
         raw_groups: bool = False
     ) -> Union[pd.DataFrame, List[List[pd.DataFrame]], Dict[str, str], List[datetime]]:
         """
-        Perform a Google Trends search with daily granularity over multiple 270-day intervals.
+        Internal method to search Google Trends with daily granularity over multiple 270-day intervals.
         
         Args:
             search_term (str): The search term to look up in Google Trends
-            time_range (str): Time range for the search (e.g. "2008-01-01 2025-04-21")
+            start_date (Union[str, datetime]): Start date for the search
+            end_date (Optional[Union[str, datetime]]): End date for the search
             stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
                           2 means 67% overlap, etc.
             trim (bool): Whether to drop rows with NA values because of the staggering. Defaults to True.
             scale (bool): Whether to scale overlapping intervals. Defaults to True.
-            combine (str): How to combine multiple columns. Options are "none", "mean", "median", or "mode". Defaults to "median".
+            combine (str): How to combine multiple columns. Options are "mean", "median", or "mode". Defaults to "median".
             final_scale (bool): Whether to scale the final result so maximum value is 100. Defaults to True.
             round (int): Number of decimal places to round values to. Defaults to 2.
             method (str): Method to use for scaling overlapping intervals. Options are 'SSD' or 'MAD'. Defaults to 'MAD'.
@@ -351,7 +341,8 @@ class Trends:
         message = (
             f"{prefix}Preparing to perform search with:\n"
             f"  Search term: {search_term}\n"
-            f"  Time range: {time_range}\n"
+            f"  Start date: {start_date}\n"
+            f"  End date: {end_date}\n"
             f"  Stagger: {stagger}\n"
             f"  Scale: {scale}\n"
             f"  Method: {method}\n"
@@ -361,9 +352,6 @@ class Trends:
             f"  API: {self.api if hasattr(self, 'api') and self.api else 'auto-select'}"
         )
         self._print(message)
-        
-        # Parse the time range
-        start_date, end_date = time_range.split()
         
         # Convert dates to datetime if they're strings
         if isinstance(start_date, str):
@@ -451,7 +439,7 @@ class Trends:
             for i, log in enumerate(self.main_log, 1):
                 error_str = f" [ERROR: {log['error']}]" if 'error' in log else ""
                 warning_str = f" [WARNING: {log['warning']}]" if 'warning' in log else ""
-                message += f"\nSearch {i}: {log['search_term']} | {log['time_range']} | {log['api']} | {log['granularity']}{error_str}{warning_str}"
+                message += f"\nSearch {i}: {log['search_term']} | {log['start_date']} to {log['end_date']} | {log['api']} | {log['granularity']}{error_str}{warning_str}"
             self._print(message)
 
             return result_df
@@ -467,7 +455,7 @@ class Trends:
         
         Args:
             search_term (str): The search term to look up in Google Trends
-            start_date (Union[str, datetime]): The start date in YYYY-MM-DD format or datetime object
+            start_date (Union[str, datetime]): Start date for the search
             
         Returns:
             pd.DataFrame: A dataframe containing the timeseries data with daily granularity
@@ -484,10 +472,6 @@ class Trends:
         
         # Calculate end_date (270 days total, that's why we add 269 days, because it includes start and end)
         end_dt = start_dt + timedelta(days=269)
-        end_date = end_dt.strftime("%Y-%m-%d")
-        
-        # Create the time range string
-        time_range = f"{start_dt.strftime('%Y-%m-%d')} {end_date}"
         
         if self.dry_run:
             # Create a date range with daily frequency
@@ -510,12 +494,14 @@ class Trends:
                 # Print warning immediately with detailed information
                 self._print(f"\nWARNING: {warning_msg}")
                 self._print(f"  Search term: {search_term}")
-                self._print(f"  Time range: {time_range}")
+                self._print(f"  Start date: {start_dt.strftime('%Y-%m-%d')}")
+                self._print(f"  End date: {end_dt.strftime('%Y-%m-%d')}")
                 self._print(f"  API mode: {self.api_mode['name']}")
                 # Log the warning
                 self._log(
                     search_term=search_term,
-                    time_range=time_range,
+                    start_date=start_dt,
+                    end_date=end_dt,
                     api=self.api_mode['name'],
                     granularity=actual_granularity,
                     warning=warning_msg
@@ -527,22 +513,39 @@ class Trends:
         self,
         search_term: str,
         start_date: Union[str, datetime],
-        end_date: Union[str, datetime]
+        end_date: Union[str, datetime],
+        stagger: int = 0,
+        trim: bool = True,
+        scale: bool = True,
+        combine: str = "median",
+        final_scale: bool = True,
+        round: int = 2,
+        method: str = "MAD",
+        raw_groups: bool = False
     ) -> pd.DataFrame:
         """
-        Perform a Google Trends search with hourly granularity over a 7-day period.
+        Perform a Google Trends search with hourly granularity.
         
         Args:
             search_term (str): The search term to look up in Google Trends
             start_date (Union[str, datetime]): Start date for the search
             end_date (Union[str, datetime]): End date for the search
+            stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
+                          2 means 67% overlap, etc.
+            trim (bool): Whether to drop rows with NA values because of the staggering. Defaults to True.
+            scale (bool): Whether to scale overlapping intervals. Defaults to True.
+            combine (str): How to combine multiple columns. Options are "mean", "median", or "mode". Defaults to "median".
+            final_scale (bool): Whether to scale the final result so maximum value is 100. Defaults to True.
+            round (int): Number of decimal places to round values to. Defaults to 2.
+            method (str): Method to use for scaling overlapping intervals. Options are 'SSD' or 'MAD'. Defaults to 'MAD'.
+            raw_groups (bool): If True, returns the raw stagger groups without concatenating. Defaults to False.
             
         Returns:
             pd.DataFrame: A dataframe containing the timeseries data with hourly granularity
         """
         # Parse the time range
         start_dt = parse(start_date) if isinstance(start_date, str) else start_date
-        end_dt = parse(end_date) if isinstance(end_date, str) and end_date else None
+        end_dt = parse(end_date) if isinstance(end_date, str) else end_date
 
         if self.dry_run:
             # Create a date range with hourly frequency
@@ -554,9 +557,6 @@ class Trends:
         start_date = start_dt.strftime("%Y-%m-%dT%H")
         end_date = end_dt.strftime("%Y-%m-%dT%H")
         
-        # Create the time range string
-        time_range = f"{start_date} {end_date}"
-        
         # Perform the search using the chosen API
         results = self._search_with_chosen_api(
             search_term=search_term,
@@ -564,6 +564,16 @@ class Trends:
             end_date=end_dt
         )
         
+        # Apply final scaling if requested
+        if final_scale and not self.dry_run:
+            max_val = results.max().max()
+            if max_val > 0:
+                results = results * (100 / max_val)
+        
+        # Round values if requested
+        if round is not None:
+            results = results.round(round)
+            
         return results
 
     def _search_staggered(
@@ -879,16 +889,16 @@ class Trends:
     def _search_with_chosen_api(
         self,
         search_term: Union[str, List[str]],
-        start_date: Optional[Union[str, datetime]] = None,
-        end_date: Optional[Union[str, datetime]] = None
+        start_date: Union[str, datetime],
+        end_date: Union[str, datetime]
     ) -> Any:
         """
         Search using the chosen API from the config file's api_order list.
         
         Args:
             search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
-            start_date (Optional[Union[str, datetime]]): Start date for the search
-            end_date (Optional[Union[str, datetime]]): End date for the search
+            start_date (Union[str, datetime]): Start date for the search
+            end_date (Union[str, datetime]): End date for the search
             
         Returns:
             Any: The raw result from the API
@@ -896,31 +906,29 @@ class Trends:
         Raises:
             Exception: If all APIs in the order fail
         """
-        from .APIs import available_apis
+        from APIs import available_apis
         
         # Try each API in the configured order
         for api_name in self.api_mode['api_order']:
             try:
-                self.print_func(f"Trying API: {api_name}")
+                self._print(f"Trying API: {api_name}")
                 api_info = available_apis[api_name]
                 
                 # For paid APIs, check if we have the key
                 if api_info['type'] == 'paid':
-                    key_name = f"{api_name}_key"
-                    if not hasattr(self, key_name) or not getattr(self, key_name):
-                        self.print_func(f"Skipping {api_name} - no API key available")
+                    if api_name not in self.api_keys or not self.api_keys[api_name]:
+                        self._print(f"Skipping {api_name} - no API key available")
                         continue
                 
                 # Create API instance with our config
                 api_instance = api_info['class'](
-                    api_key=getattr(self, f"{api_name}_key", None),
+                    api_key=self.api_keys.get(api_name),
                     proxy=self.proxy,
                     change_identity=self.change_identity,
                     request_delay=self.request_delay,
                     tor_control_password=self.tor_control_password,
                     verbose=self.verbose,
-                    print_func=self.print_func,
-                    **self.api_kwargs
+                    print_func=self._print
                 )
                 
                 # Perform the search and return raw result
@@ -928,329 +936,13 @@ class Trends:
                     search_term=search_term,
                     start_date=start_date,
                     end_date=end_date
-                ).standardize_data()
+                ).standardize_data().data
                 
             except Exception as e:
-                self.print_func(f"Error with {api_name}: {str(e)}")
+                self._print(f"Error with {api_name}: {str(e)}")
                 continue
         
         raise Exception("All APIs in the configured order failed")
-
-    def _search_serpwow(
-        self,
-        search_term: Union[str, List[str]],
-        time_range: Optional[str] = None
-    ) -> pd.DataFrame:
-        """
-        Search Google Trends using the SerpWow API.
-        
-        Args:
-            search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
-            time_range (Optional[str]): Time range for the search (e.g. "2008-01-01 2025-04-21")
-            
-        Returns:
-            pd.DataFrame: A dataframe containing the timeseries data
-        """
-        self._print(f"Sending SerpWow search request:")
-        self._print(f"  Search term: {search_term}")
-        self._print(f"  Time range: {time_range if time_range else 'default'}")
-        
-        try:
-            # Parse time range if provided
-            if time_range:
-                start_date, end_date = time_range.split()
-                start_dt = datetime.strptime(start_date, "%Y-%m-%d")
-                end_dt = datetime.strptime(end_date, "%Y-%m-%d")
-                # Convert to SerpWow format (MM/DD/YYYY)
-                time_period_min = start_dt.strftime("%m/%d/%Y")
-                time_period_max = end_dt.strftime("%m/%d/%Y")
-            else:
-                # Default to last 90 days if no time range provided
-                end_dt = datetime.now()
-                start_dt = end_dt - timedelta(days=90)
-                time_period_min = start_dt.strftime("%m/%d/%Y")
-                time_period_max = end_dt.strftime("%m/%d/%Y")
-            
-            # Set up the request parameters
-            params = {
-                'api_key': self.api_keys['serpwow'],
-                'engine': 'google',
-                'search_type': 'trends',
-                'q': search_term,
-                'data_type': 'INTEREST_OVER_TIME',
-                'time_period': 'custom',
-                'time_period_min': time_period_min,
-                'time_period_max': time_period_max,
-                'trends_geo': self.geo,
-                'trends_tz': str(self.tz),
-                'trends_language': self.language
-            }
-            
-            # Add optional parameters if provided
-            if self.cat is not None:
-                params['trends_category'] = str(self.cat)
-            if self.region:
-                params['trends_region'] = self.region
-            
-            # Print the full request URL (with API key masked)
-            masked_params = params.copy()
-            masked_params['api_key'] = '***'
-            request_url = 'https://api.serpwow.com/live/search'
-            self._print(f"\nFull request URL (API key masked):")
-            self._print(f"  {request_url}?{'&'.join(f'{k}={v}' for k, v in masked_params.items())}")
-            
-            # Make the HTTP GET request
-            response = requests.get(request_url, params=params)
-            response.raise_for_status()  # Raise an exception for bad status codes
-            
-            # Parse the JSON response
-            data = response.json()
-            
-            # # Print the full response for debugging
-            # self._print("\nFull API response:")
-            # self._print(json.dumps(data, indent=2)[:10000])  # Increased from 2000 to 10000
-            
-            # Check for API errors
-            if 'error' in data:
-                error_msg = data['error']
-                self._print(f"  Search failed: {error_msg}")
-                self._log(
-                    search_term=search_term,
-                    start_date=start_dt,
-                    end_date=end_dt,
-                    api="serpwow",
-                    error=error_msg
-                )
-                return pd.DataFrame()
-            
-            # Extract the trends data
-            if 'trends_interest_over_time' in data and 'data' in data['trends_interest_over_time']:
-                timeline_data = data['trends_interest_over_time']['data']
-                
-                if not timeline_data:
-                    error_msg = "No trends data found in response"
-                    self._print(f"  Search failed: {error_msg}")
-                    self._log(
-                        search_term=search_term,
-                        start_date=start_dt,
-                        end_date=end_dt,
-                        api="serpwow",
-                        error=error_msg
-                    )
-                    return pd.DataFrame()
-                
-                # Create lists to store dates and values
-                dates = []
-                values = []
-                
-                # Process each data point
-                for point in timeline_data:
-                    # Convert UTC date to datetime
-                    date = datetime.strptime(point['date_utc'], "%Y-%m-%dT%H:%M:%S.%fZ")
-                    dates.append(date)
-                    
-                    # Get the value for the search term
-                    if point['values'] and point['values'][0]['has_value']:
-                        value = point['values'][0]['value']
-                    else:
-                        value = 0
-                    values.append(value)
-                
-                # Create DataFrame
-                df = pd.DataFrame({
-                    search_term.replace(" ", "_"): values
-                }, index=pd.DatetimeIndex(dates))
-                
-                self._print("  Search successful!")
-                
-                # Log the search
-                self._log(
-                    search_term=search_term,
-                    start_date=start_dt,
-                    end_date=end_dt,
-                    api="serpwow",
-                    granularity=self._get_index_granularity(df.index)
-                )
-                
-                return df
-            else:
-                error_msg = "No trends data found in response"
-                self._print(f"  Search failed: {error_msg}")
-                self._log(
-                    search_term=search_term,
-                    start_date=start_dt,
-                    end_date=end_dt,
-                    api="serpwow",
-                    error=error_msg
-                )
-                return pd.DataFrame()
-                
-        except Exception as e:
-            self._print(f"  Search failed: {str(e)}")
-            self._log(
-                search_term=search_term,
-                start_date=start_dt,
-                end_date=end_dt,
-                api="serpwow",
-                error=str(e)
-            )
-            raise
-
-    def _search_searchapi(
-        self,
-        search_term: Union[str, List[str]],
-        time_range: Optional[str] = None
-    ) -> pd.DataFrame:
-        """
-        Search Google Trends using the SearchAPI.
-        
-        Args:
-            search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
-            time_range (Optional[str]): Time range for the search (e.g. "2008-01-01 2025-04-21")
-            
-        Returns:
-            pd.DataFrame: A dataframe containing the timeseries data
-            
-        Note:
-            SearchAPI supports up to 5 search queries separated by commas.
-            Time range can be specified in various formats:
-            - "now 1-H" for past hour
-            - "now 4-H" for past 4 hours
-            - "now 1-d" for past day
-            - "now 7-d" for past 7 days
-            - "today 1-m" for past 30 days
-            - "today 3-m" for past 90 days
-            - "today 12-m" for past 12 months
-            - "today 5-y" for past 5 years
-            - "all" for all available data since 2004
-            - Custom date range: "yyyy-mm-dd yyyy-mm-dd"
-        """
-        self._print(f"Sending SearchAPI search request:")
-        self._print(f"  Search term: {search_term}")
-        self._print(f"  Time range: {time_range if time_range else 'default'}")
-        
-        try:
-            # Set up the request parameters
-            params = {
-                'engine': 'google_trends',
-                'api_key': self.api_keys['searchapi'],
-                'data_type': 'TIMESERIES',
-                'q': search_term,
-                'geo': self.geo,
-                'tz': str(self.tz),
-                'language': self.language
-            }
-            
-            # Add time range if provided
-            if time_range:
-                params['time'] = time_range
-            
-            # Add optional parameters if provided
-            if self.cat is not None:
-                params['cat'] = str(self.cat)
-            if self.region:
-                params['region'] = self.region
-            
-            # Make the HTTP GET request
-            response = requests.get('https://www.searchapi.io/api/v1/search', params=params)
-            response.raise_for_status()  # Raise an exception for bad status codes
-            
-            # Parse the JSON response
-            data = response.json()
-            # # Print the full response for debugging
-            # self._print("\nFull API response:")
-            # self._print(json.dumps(data, indent=2)[:10000])  # Increased from 2000 to 10000
-            
-            # Extract the trends data
-            if 'interest_over_time' in data and 'timeline_data' in data['interest_over_time']:
-                timeline_data = data['interest_over_time']['timeline_data']
-                
-                if not timeline_data:
-                    error_msg = "No trends data found in response"
-                    self._print(f"  Search failed: {error_msg}")
-                    self._log(
-                        search_term=search_term,
-                        start_date=pd.Timestamp(timeline_data[0]['date']),
-                        end_date=pd.Timestamp(timeline_data[-1]['date']),
-                        api="searchapi",
-                        error=error_msg
-                    )
-                    return pd.DataFrame()
-                
-                # Create lists to store dates and values
-                dates = []
-                values = []
-                
-                # Process each data point
-                for point in timeline_data:
-                    # Convert timestamp to datetime
-                    date = datetime.fromtimestamp(int(point['timestamp']))
-                    dates.append(date)
-                    
-                    # Get the value for the search term
-                    if point['values'] and point['values'][0]['extracted_value'] is not None:
-                        value = point['values'][0]['extracted_value']
-                    else:
-                        value = 0
-                    values.append(value)
-                
-                # Create DataFrame
-                df = pd.DataFrame({
-                    search_term.replace(" ", "_"): values
-                }, index=pd.DatetimeIndex(dates))
-                
-                self._print("  Search successful!")
-                
-                # Log the search
-                self._log(
-                    search_term=search_term,
-                    start_date=pd.Timestamp(timeline_data[0]['date']),
-                    end_date=pd.Timestamp(timeline_data[-1]['date']),
-                    api="searchapi"
-                )
-                
-                return df
-            else:
-                error_msg = "No trends data found in response"
-                self._print(f"  Search failed: {error_msg}")
-                self._log(
-                    search_term=search_term,
-                    start_date=pd.Timestamp(timeline_data[0]['date']),
-                    end_date=pd.Timestamp(timeline_data[-1]['date']),
-                    api="searchapi",
-                    error=error_msg
-                )
-                return pd.DataFrame()
-                
-        except Exception as e:
-            self._print(f"  Search failed: {str(e)}")
-            self._log(
-                search_term=search_term,
-                start_date=pd.Timestamp(timeline_data[0]['date']),
-                end_date=pd.Timestamp(timeline_data[-1]['date']),
-                api="searchapi",
-                error=str(e)
-            )
-            raise
-
-    def _get_date_series(self, data: dict) -> pd.DataFrame:
-        dates = []
-        start_dates = []
-        end_dates = []
-        values = []
-
-        if 'interest_over_time' in data and 'timeline_data' in data['interest_over_time']:
-            timeline_data = data['interest_over_time']['timeline_data']
-            for point in timeline_data:
-                values.append(v['extracted_value'] for v in point['values'])
-                point_date = unicodedata.normalize('NFKC', point['date'])
-                start_date, end_date = _get_each_date_of_pair(point_date)
-        return dates, values
-
-
-
-
-
 
 # Example usage
 if __name__ == "__main__":
