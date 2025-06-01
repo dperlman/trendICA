@@ -5,26 +5,35 @@ import sys
 import unicodedata
 import numpy as np
 import pandas as pd
-from datetime import datetime
-from typing import Optional, Callable, Union, Dict, Tuple, Any
+from datetime import datetime, timedelta
+from typing import Optional, Callable, Union, Dict, Tuple, Any, List
 import yaml
 from dateutil import parser
+from types import SimpleNamespace
 
 def load_config() -> dict:
     """
     Load configuration from config.yaml if it exists and return it.
-    If the file doesn't exist, returns an empty dict.
+    If the file doesn't exist, copies default_config.yaml to config.yaml and loads from that.
     """
     config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-    if os.path.exists(config_path):
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-    else:
-        config = {}
+    default_config_path = os.path.join(os.path.dirname(__file__), 'default_config.yaml')
+    
+    if not os.path.exists(config_path):
+        if os.path.exists(default_config_path):
+            import shutil
+            shutil.copy2(default_config_path, config_path)
+            print(f"Created config.yaml from default_config.yaml")
+        else:
+            print("Warning: Neither config.yaml nor default_config.yaml found")
+            return {}
+    
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
     return config
 
 
-def change_tor_identity(password: Optional[str], print_func: Optional[Callable] = None) -> None:
+def change_tor_identity(password: Optional[str], print_func: Optional[Callable] = None, control_port: int = 9151) -> None:
     """
     Change the Tor identity by connecting to the Tor control port and sending a NEWNYM signal.
     Includes error handling and retry logic.
@@ -32,6 +41,7 @@ def change_tor_identity(password: Optional[str], print_func: Optional[Callable] 
     Args:
         password (Optional[str]): Password for Tor control port
         print_func (Optional[Callable]): Function to use for printing debug information
+        control_port (int): Port number for Tor control port. Defaults to 9151
     """
     if print_func is None:
         print_func = print
@@ -49,7 +59,7 @@ def change_tor_identity(password: Optional[str], print_func: Optional[Callable] 
 
     try:
         # Try to connect to the Tor control port
-        with Controller.from_port(port=9051) as controller:
+        with Controller.from_port(port=control_port) as controller:
             # Authenticate with the controller
             controller.authenticate(password=password)
             
@@ -63,7 +73,7 @@ def change_tor_identity(password: Optional[str], print_func: Optional[Callable] 
     except Exception as e:
         print_func(f"Error changing Tor identity: {e}")
         print_func("Make sure Tor is running with control port enabled.")
-        print_func("Add 'ControlPort 9051' to your torrc file and restart Tor.")
+        print_func(f"Add 'ControlPort {control_port}' to your torrc file and restart Tor.")
 
 def get_index_granularity(index: pd.DatetimeIndex, verbose: bool = False) -> str:
     """
@@ -124,10 +134,10 @@ def calculate_search_granularity(
     start_date: Union[str, datetime],
     end_date: Union[str, datetime],
     verbose: bool = False
-) -> Dict[str, Union[str, pd.DatetimeIndex]]:
+) -> Dict[str, Union[str, pd.DatetimeIndex, pd.PeriodIndex]]:
     """
     Calculate the appropriate granularity for a Google Trends search based on the time range
-    and generate the corresponding DateTimeIndex.
+    and generate the corresponding DateTimeIndex and PeriodIndex.
     
     Args:
         start_date (Union[str, datetime]): Start date of the search
@@ -135,9 +145,10 @@ def calculate_search_granularity(
         verbose (bool): Whether to print debug information
         
     Returns:
-        Dict[str, Union[str, pd.DatetimeIndex]]: Dictionary containing:
-            - "granularity": The appropriate granularity to use ("h" for hour, "D" for day, "W" for week, or "ME" for month end)
-            - "index": A pandas DateTimeIndex with the appropriate frequency
+        Dict[str, Union[str, pd.DatetimeIndex, pd.PeriodIndex]]: Dictionary containing:
+            - "granularity": The appropriate granularity to use ("h" for hour, "D" for day, "W" for week, or "MS" for month start)
+            - "datetime_index": A pandas DateTimeIndex with the appropriate frequency
+            - "period_index": A pandas PeriodIndex with the appropriate frequency
     """
     # Convert dates to datetime if they're strings
     if isinstance(start_date, str):
@@ -154,22 +165,34 @@ def calculate_search_granularity(
     days_diff = (end_dt - start_dt).days
     
     # Determine granularity based on time range
-    if days_diff <= 270:  # Up to and including 270 days
+    if days_diff < 8:  # Less than 8 days
+        granularity = 'h'
+    elif 8 <= days_diff < 270:  # Between 8 days and 270 days
         granularity = 'D'
-    elif 270 < days_diff <= 365:  # Between 270 days and 1 year
+    elif 270 <= days_diff < 1900:  # Between 270 days and 1900 days
         granularity = 'W'
-    else:  # More than 1 year
-        granularity = 'ME'
+    else:  # More than 1900 days
+        granularity = 'MS'
     
     # Create DateTimeIndex with appropriate frequency, ensuring both start and end dates are included
-    index = pd.date_range(start=start_dt, end=end_dt, freq=granularity, inclusive='both')
+    datetime_index = pd.date_range(start=start_dt, end=end_dt, freq=granularity, inclusive='both')
+    
+    # Create PeriodIndex with appropriate frequency
+    # For hourly granularity, use 'h'
+    # For daily granularity, use 'D'
+    # For weekly granularity, use 'W'
+    # For monthly granularity, use 'MS'
+    period_freq = 'h' if granularity == 'h' else 'D' if granularity == 'D' else 'W' if granularity == 'W' else 'MS'
+    period_index = pd.period_range(start=start_dt, end=end_dt, freq=period_freq)
     
     if verbose:
         _print_if_verbose(f"Granularity for date range {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')} ({days_diff} days) is {granularity}", verbose)
+        _print_if_verbose(f"Created {len(datetime_index)} datetime periods and {len(period_index)} period indices", verbose)
     
     return {
         "granularity": granularity,
-        "index": index
+        "datetime_index": datetime_index,
+        "period_index": period_index
     }
 
 def _custom_mode(df: pd.DataFrame, axis: int = 1) -> pd.Series:
@@ -311,7 +334,7 @@ def _get_total_size(obj: Any, seen: Optional[set] = None) -> int:
 
 def _get_each_date_of_pair(date_str: str) -> Tuple[str, str, str]:
     """
-    Extract the start date from a date range string.
+    Get each date in a date range.
     
     Args:
         date_str (str): Date range string in format like "Dec 31, 2023 – Jan 6, 2024" or "Jan 7 – 13, 2024"
@@ -415,28 +438,53 @@ def _print_if_verbose(message: str, verbose: bool = False) -> None:
 def make_time_range(
     start_date: Optional[Union[str, datetime]] = None,
     end_date: Optional[Union[str, datetime]] = None
-) -> str:
+) -> SimpleNamespace:
     """
     Convert start_date and end_date into a formatted time range string.
     If dates are strings, they will be parsed into datetime objects.
+    If no dates are provided, defaults to the last 270 days.
     The output format will be "YYYY-MM-DD YYYY-MM-DD".
     
     Args:
-        start_date (Optional[Union[str, datetime]]): Start date, can be string or datetime
-        end_date (Optional[Union[str, datetime]]): End date, can be string or datetime
+        start_date (Optional[Union[str, datetime]]): Start date. If string, will be parsed with dateutil.parser
+        end_date (Optional[Union[str, datetime]]): End date. If string, will be parsed with dateutil.parser
         
     Returns:
-        str: Formatted time range string like "2024-01-01 2024-12-31"
+        SimpleNamespace: Object containing:
+            - ymd: Time range string in format "YYYY-MM-DD YYYY-MM-DD"
+            - mdy: Time range string in format "MM/DD/YYYY MM/DD/YYYY"
+            - start_datetime: Start date as datetime object
+            - end_datetime: End date as datetime object
     """
-    # Convert string dates to datetime if needed
+    # If no dates provided, default to last 270 days
+    if not start_date and not end_date:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=270)
+
+    # default datetime object for parser is january 1 of this year and has hour zero
+    default_datetime = datetime(2025, 1, 1, 0, 0, 0)
+
+    # Parse string dates into datetime objects
     if isinstance(start_date, str):
-        start_date = parser.parse(start_date)
+        start_date = parser.parse(start_date, default=default_datetime)
     if isinstance(end_date, str):
-        end_date = parser.parse(end_date)
+        end_date = parser.parse(end_date, default=default_datetime)
         
     # Format dates as YYYY-MM-DD
-    start_str = start_date.strftime("%Y-%m-%d") if start_date else ""
-    end_str = end_date.strftime("%Y-%m-%d") if end_date else ""
+    start_str_ymd = start_date.strftime("%Y-%m-%d") if start_date else ""
+    end_str_ymd = end_date.strftime("%Y-%m-%d") if end_date else ""
     
-    # Combine into time range string
-    return f"{start_str} {end_str}".strip() 
+    # Format dates as MM/DD/YYYY
+    start_str_mdy = start_date.strftime("%m/%d/%Y") if start_date else ""
+    end_str_mdy = end_date.strftime("%m/%d/%Y") if end_date else ""
+    
+    # Combine into time range strings
+    time_range_ymd = f"{start_str_ymd} {end_str_ymd}".strip()
+    time_range_mdy = f"{start_str_mdy} {end_str_mdy}".strip()
+    
+    return SimpleNamespace(
+        ymd=time_range_ymd,
+        mdy=time_range_mdy,
+        start_datetime=start_date,
+        end_datetime=end_date
+    )

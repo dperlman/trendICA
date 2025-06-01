@@ -3,18 +3,15 @@ import requests
 from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
 from utils import make_time_range
-from base_classes import API_Call
+from .base_classes import API_Call
 import pandas as pd
+import unicodedata
 
 class SerpWow(API_Call):
     def __init__(
         self,
         api_key: str,
-        geo: str = "US",
-        language: str = "en",
-        tz: int = 0,
-        verbose: bool = False,
-        print_func: Optional[callable] = None,
+        api_endpoint: Optional[str] = "https://api.serpwow.com/live/search",
         **kwargs
     ):
         """
@@ -22,22 +19,17 @@ class SerpWow(API_Call):
         
         Args:
             api_key (str): Your SerpWow API key
-            geo (str): Geographic location for the search (e.g. "US"). Defaults to "US"
-            language (str): Language for the search. Defaults to "en"
-            tz (int): Timezone offset in minutes. Defaults to 0
-            verbose (bool): Whether to print debug information
-            print_func (Optional[callable]): Function to use for printing debug information
-            **kwargs: Additional keyword arguments to pass to the SerpWow class
+            api_endpoint (Optional[str]): The API endpoint URL. Defaults to "https://api.serpwow.com/live/search"
+            **kwargs: Additional keyword arguments passed to API_Call
         """
-        super().__init__(**locals())
-        self.print_func = print_func if print_func is not None else print
+        super().__init__(api_key=api_key, api_endpoint=api_endpoint, **kwargs)
 
     def search(
         self,
         search_term: Union[str, List[str]],
         start_date: Optional[Union[str, datetime]] = None,
         end_date: Optional[Union[str, datetime]] = None
-    ) -> Union[pd.DataFrame, Dict[str, Any]]:
+    ) -> 'SerpWow':
         """
         Search Google Trends using the SerpWow API.
         
@@ -47,7 +39,7 @@ class SerpWow(API_Call):
             end_date (Optional[Union[str, datetime]]): End date for the search
             
         Returns:
-            Union[pd.DataFrame, Dict[str, Any]]: Raw search results
+            SerpWow: Returns self for method chaining
         """
         self.print_func(f"Sending SerpWow search request:")
         self.print_func(f"  Search term: {search_term}")
@@ -56,19 +48,9 @@ class SerpWow(API_Call):
         
         try:
             # Parse time range if provided
-            if start_date or end_date:
-                time_range = make_time_range(start_date, end_date)
-                start_dt = datetime.strptime(time_range.split()[0], "%Y-%m-%d")
-                end_dt = datetime.strptime(time_range.split()[1], "%Y-%m-%d")
-                # Convert to SerpWow format (MM/DD/YYYY)
-                time_period_min = start_dt.strftime("%m/%d/%Y")
-                time_period_max = end_dt.strftime("%m/%d/%Y")
-            else:
-                # Default to last 90 days if no time range provided
-                end_dt = datetime.now()
-                start_dt = end_dt - timedelta(days=90)
-                time_period_min = start_dt.strftime("%m/%d/%Y")
-                time_period_max = end_dt.strftime("%m/%d/%Y")
+            time_range = make_time_range(start_date, end_date)
+            time_period_min = time_range.mdy.split()[0]
+            time_period_max = time_range.mdy.split()[1]
             
             # Set up the request parameters
             params = {
@@ -82,41 +64,72 @@ class SerpWow(API_Call):
                 'time_period_max': time_period_max,
                 'trends_geo': self.geo,
                 'trends_tz': str(self.tz),
-                'trends_language': self.language
+                'hl': self.language
             }
             
-            # Add any additional parameters from kwargs
-            params.update(self.kwargs)
+            # Add optional parameters if they exist and are not None
+            if hasattr(self, 'cat') and self.cat is not None:
+                params['trends_category'] = str(self.cat)
+            if hasattr(self, 'region') and self.region is not None:
+                params['trends_region'] = self.region
+            if hasattr(self, 'gprop') and self.gprop is not None:
+                params['trends_gprop'] = self.gprop
             
             # Make the HTTP GET request
-            response = requests.get('https://api.serpwow.com/live/search', params=params)
+            response = requests.get(self.api_endpoint, params=params)
             response.raise_for_status()  # Raise an exception for bad status codes
             
             # Parse the JSON response
-            data = response.json()
+            self.raw_data = response.json()
             
             self.print_func("  Search successful!")
-            self.print_func(data)
+            #self.print_func(self.raw_data)
             
-            return data
+            return self
                     
         except Exception as e:
             self.print_func(f"  Search failed: {str(e)}")
             raise
+
+    def standardize_data(self) -> 'SerpWow':
+        """
+        Standardize the raw data into a common format.
+        Transforms the trends_interest_over_time data into a list of dictionaries with date and values.
+        
+        Returns:
+            SerpWow: Returns self for method chaining
+        """
+        if not hasattr(self, 'raw_data') or not self.raw_data:
+            raise ValueError("No raw data available. Call search() first.")
+            
+        if 'trends_interest_over_time' not in self.raw_data:
+            raise ValueError("Raw data does not contain trends_interest_over_time data")
+            
+        # Extract the timeline data
+        timeline = self.raw_data['trends_interest_over_time']['data']
+        
+        # Transform the data into the standardized format
+        self.data = []
+        for entry in timeline:
+            standardized_entry = {
+                'date': unicodedata.normalize('NFKC', entry['date_formatted']),
+                'values': [
+                    {
+                        'value': item['value'],
+                        'query': item['keyword']
+                    }
+                    for item in entry['values']
+                ]
+            }
+            self.data.append(standardized_entry)
+            
+        return self
 
 def search_serpwow(
     search_term: Union[str, List[str]],
     start_date: Optional[Union[str, datetime]] = None,
     end_date: Optional[Union[str, datetime]] = None,
     api_key: Optional[str] = None,
-    geo: str = "US",
-    language: str = "en",
-    tz: int = 0,
-    no_cache: bool = False,
-    cat: Optional[int] = None,
-    region: Optional[str] = None,
-    verbose: bool = False,
-    print_func: Optional[callable] = None,
     **kwargs
 ) -> Union[pd.DataFrame, Dict[str, Any]]:
     """
@@ -127,18 +140,10 @@ def search_serpwow(
         start_date (Optional[Union[str, datetime]]): Start date for the search
         end_date (Optional[Union[str, datetime]]): End date for the search
         api_key (Optional[str]): The SerpWow API key. If None, will try to get from environment variable SERPWOW_API_KEY
-        geo (str): Geographic location for the search (e.g. "US"). Defaults to "US"
-        language (str): Language for the search. Defaults to "en"
-        tz (int): Timezone offset in minutes. Defaults to 0
-        no_cache (bool): Whether to skip the cache. Defaults to False
-        cat (Optional[int]): Category for the search. Defaults to None
-        region (Optional[str]): Region for the search. Defaults to None
-        verbose (bool): Whether to print debug information
-        print_func (Optional[callable]): Function to use for printing debug information
-        **kwargs: Additional keyword arguments to pass to the SerpWow class
+        **kwargs: Additional keyword arguments passed to API_Call
         
     Returns:
-        Union[pd.DataFrame, Dict[str, Any]]: Raw search results
+        Union[pd.DataFrame, Dict[str, Any]]: Standardized search results
     """
     serp = SerpWow(**locals())
-    return serp.search(search_term, start_date, end_date) 
+    return serp.search(search_term, start_date, end_date).standardize_data().data 

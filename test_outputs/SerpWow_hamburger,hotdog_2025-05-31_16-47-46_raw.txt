@@ -1,0 +1,747 @@
+{
+  "request_info": {
+    "credits_remaining": 48,
+    "credits_used": 52,
+    "credits_used_this_request": 1,
+    "success": true
+  },
+  "search_information": {
+    "original_query_yields_zero_results": false
+  },
+  "search_metadata": {
+    "created_at": "2025-05-31T23:47:47.943Z",
+    "engine_url": "https://www.trends.google.com/trends/",
+    "html_url": "https://api.serpwow.com/live/search?api_key=063CF8C35D1E42FF96E7262A2AD04C00&engine=google&search_type=trends&q=hamburger%2Chotdog&data_type=INTEREST_OVER_TIME&time_period=custom&time_period_min=01%2F01%2F2024&time_period_max=09%2F27%2F2024&trends_geo=&trends_tz=420&hl=en&output=html",
+    "json_url": "https://api.serpwow.com/live/search?api_key=063CF8C35D1E42FF96E7262A2AD04C00&engine=google&search_type=trends&q=hamburger%2Chotdog&data_type=INTEREST_OVER_TIME&time_period=custom&time_period_min=01%2F01%2F2024&time_period_max=09%2F27%2F2024&trends_geo=&trends_tz=420&hl=en&output=json",
+    "processed_at": "2025-05-31T23:47:53.030Z",
+    "total_time_taken": 5.09
+  },
+  "search_parameters": {
+    "data_type": "INTEREST_OVER_TIME",
+    "engine": "google",
+    "hl": "en",
+    "q": "hamburger,hotdog",
+    "search_type": "trends",
+    "time_period": "custom",
+    "time_period_max": "09/27/2024",
+    "time_period_min": "01/01/2024",
+    "trends_geo": "",
+    "trends_tz": "420"
+  },
+  "trends_interest_over_time": {
+    "averages": [
+      {
+        "keyword": "hamburger",
+        "value": 82
+      },
+      {
+        "keyword": "hotdog",
+        "value": 16
+      }
+    ],
+    "data": [
+      {
+        "date_formatted": "31 \u0434\u0435\u043a. 2023\u202f\u0433. \u2013 6 \u044f\u043d\u0432. 2024\u202f\u0433.",
+        "date_utc": "2023-12-31T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 82,
+            "value_formatted": "82"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 13,
+            "value_formatted": "13"
+          }
+        ]
+      },
+      {
+        "date_formatted": "7\u201313 \u044f\u043d\u0432. 2024\u202f\u0433.",
+        "date_utc": "2024-01-07T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 83,
+            "value_formatted": "83"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 14,
+            "value_formatted": "14"
+          }
+        ]
+      },
+      {
+        "date_formatted": "14\u201320 \u044f\u043d\u0432. 2024\u202f\u0433.",
+        "date_utc": "2024-01-14T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 86,
+            "value_formatted": "86"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 14,
+            "value_formatted": "14"
+          }
+        ]
+      },
+      {
+        "date_formatted": "21\u201327 \u044f\u043d\u0432. 2024\u202f\u0433.",
+        "date_utc": "2024-01-21T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 83,
+            "value_formatted": "83"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 13,
+            "value_formatted": "13"
+          }
+        ]
+      },
+      {
+        "date_formatted": "28 \u044f\u043d\u0432. \u2013 3 \u0444\u0435\u0432\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-01-28T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 83,
+            "value_formatted": "83"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "4\u201310 \u0444\u0435\u0432\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-02-04T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 87,
+            "value_formatted": "87"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "11\u201317 \u0444\u0435\u0432\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-02-11T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 85,
+            "value_formatted": "85"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 15,
+            "value_formatted": "15"
+          }
+        ]
+      },
+      {
+        "date_formatted": "18\u201324 \u0444\u0435\u0432\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-02-18T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 80,
+            "value_formatted": "80"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 13,
+            "value_formatted": "13"
+          }
+        ]
+      },
+      {
+        "date_formatted": "25 \u0444\u0435\u0432\u0440. \u2013 2 \u043c\u0430\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-02-25T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 82,
+            "value_formatted": "82"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "3\u20139 \u043c\u0430\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-03-03T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 82,
+            "value_formatted": "82"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 15,
+            "value_formatted": "15"
+          }
+        ]
+      },
+      {
+        "date_formatted": "10\u201316 \u043c\u0430\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-03-10T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 81,
+            "value_formatted": "81"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "17\u201323 \u043c\u0430\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-03-17T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 83,
+            "value_formatted": "83"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 15,
+            "value_formatted": "15"
+          }
+        ]
+      },
+      {
+        "date_formatted": "24\u201330 \u043c\u0430\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-03-24T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 85,
+            "value_formatted": "85"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "31 \u043c\u0430\u0440. \u2013 6 \u0430\u043f\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-03-31T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 81,
+            "value_formatted": "81"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 15,
+            "value_formatted": "15"
+          }
+        ]
+      },
+      {
+        "date_formatted": "7\u201313 \u0430\u043f\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-04-07T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 82,
+            "value_formatted": "82"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 15,
+            "value_formatted": "15"
+          }
+        ]
+      },
+      {
+        "date_formatted": "14\u201320 \u0430\u043f\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-04-14T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 83,
+            "value_formatted": "83"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 15,
+            "value_formatted": "15"
+          }
+        ]
+      },
+      {
+        "date_formatted": "21\u201327 \u0430\u043f\u0440. 2024\u202f\u0433.",
+        "date_utc": "2024-04-21T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 88,
+            "value_formatted": "88"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "28 \u0430\u043f\u0440. \u2013 4 \u043c\u0430\u044f 2024\u202f\u0433.",
+        "date_utc": "2024-04-28T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 85,
+            "value_formatted": "85"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "5\u201311 \u043c\u0430\u044f 2024\u202f\u0433.",
+        "date_utc": "2024-05-05T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 80,
+            "value_formatted": "80"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "12\u201318 \u043c\u0430\u044f 2024\u202f\u0433.",
+        "date_utc": "2024-05-12T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 86,
+            "value_formatted": "86"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "19\u201325 \u043c\u0430\u044f 2024\u202f\u0433.",
+        "date_utc": "2024-05-19T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 88,
+            "value_formatted": "88"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 17,
+            "value_formatted": "17"
+          }
+        ]
+      },
+      {
+        "date_formatted": "26 \u043c\u0430\u044f \u2013 1 \u0438\u044e\u043d. 2024\u202f\u0433.",
+        "date_utc": "2024-05-26T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 100,
+            "value_formatted": "100"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 18,
+            "value_formatted": "18"
+          }
+        ]
+      },
+      {
+        "date_formatted": "2\u20138 \u0438\u044e\u043d. 2024\u202f\u0433.",
+        "date_utc": "2024-06-02T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 79,
+            "value_formatted": "79"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 17,
+            "value_formatted": "17"
+          }
+        ]
+      },
+      {
+        "date_formatted": "9\u201315 \u0438\u044e\u043d. 2024\u202f\u0433.",
+        "date_utc": "2024-06-09T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 85,
+            "value_formatted": "85"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 19,
+            "value_formatted": "19"
+          }
+        ]
+      },
+      {
+        "date_formatted": "16\u201322 \u0438\u044e\u043d. 2024\u202f\u0433.",
+        "date_utc": "2024-06-16T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 80,
+            "value_formatted": "80"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 18,
+            "value_formatted": "18"
+          }
+        ]
+      },
+      {
+        "date_formatted": "23\u201329 \u0438\u044e\u043d. 2024\u202f\u0433.",
+        "date_utc": "2024-06-23T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 77,
+            "value_formatted": "77"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 17,
+            "value_formatted": "17"
+          }
+        ]
+      },
+      {
+        "date_formatted": "30 \u0438\u044e\u043d. \u2013 6 \u0438\u044e\u043b. 2024\u202f\u0433.",
+        "date_utc": "2024-06-30T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 86,
+            "value_formatted": "86"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 27,
+            "value_formatted": "27"
+          }
+        ]
+      },
+      {
+        "date_formatted": "7\u201313 \u0438\u044e\u043b. 2024\u202f\u0433.",
+        "date_utc": "2024-07-07T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 78,
+            "value_formatted": "78"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 18,
+            "value_formatted": "18"
+          }
+        ]
+      },
+      {
+        "date_formatted": "14\u201320 \u0438\u044e\u043b. 2024\u202f\u0433.",
+        "date_utc": "2024-07-14T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 81,
+            "value_formatted": "81"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 18,
+            "value_formatted": "18"
+          }
+        ]
+      },
+      {
+        "date_formatted": "21\u201327 \u0438\u044e\u043b. 2024\u202f\u0433.",
+        "date_utc": "2024-07-21T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 80,
+            "value_formatted": "80"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 18,
+            "value_formatted": "18"
+          }
+        ]
+      },
+      {
+        "date_formatted": "28 \u0438\u044e\u043b. \u2013 3 \u0430\u0432\u0433. 2024\u202f\u0433.",
+        "date_utc": "2024-07-28T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 80,
+            "value_formatted": "80"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "4\u201310 \u0430\u0432\u0433. 2024\u202f\u0433.",
+        "date_utc": "2024-08-04T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 75,
+            "value_formatted": "75"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "11\u201317 \u0430\u0432\u0433. 2024\u202f\u0433.",
+        "date_utc": "2024-08-11T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 80,
+            "value_formatted": "80"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 17,
+            "value_formatted": "17"
+          }
+        ]
+      },
+      {
+        "date_formatted": "18\u201324 \u0430\u0432\u0433. 2024\u202f\u0433.",
+        "date_utc": "2024-08-18T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 86,
+            "value_formatted": "86"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "25\u201331 \u0430\u0432\u0433. 2024\u202f\u0433.",
+        "date_utc": "2024-08-25T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 78,
+            "value_formatted": "78"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 17,
+            "value_formatted": "17"
+          }
+        ]
+      },
+      {
+        "date_formatted": "1\u20137 \u0441\u0435\u043d\u0442. 2024\u202f\u0433.",
+        "date_utc": "2024-09-01T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 78,
+            "value_formatted": "78"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 18,
+            "value_formatted": "18"
+          }
+        ]
+      },
+      {
+        "date_formatted": "8\u201314 \u0441\u0435\u043d\u0442. 2024\u202f\u0433.",
+        "date_utc": "2024-09-08T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 75,
+            "value_formatted": "75"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 16,
+            "value_formatted": "16"
+          }
+        ]
+      },
+      {
+        "date_formatted": "15\u201321 \u0441\u0435\u043d\u0442. 2024\u202f\u0433.",
+        "date_utc": "2024-09-15T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 81,
+            "value_formatted": "81"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 15,
+            "value_formatted": "15"
+          }
+        ]
+      },
+      {
+        "date_formatted": "22\u201328 \u0441\u0435\u043d\u0442. 2024\u202f\u0433.",
+        "date_utc": "2024-09-22T00:00:00.000Z",
+        "values": [
+          {
+            "has_value": true,
+            "keyword": "hamburger",
+            "value": 74,
+            "value_formatted": "74"
+          },
+          {
+            "has_value": true,
+            "keyword": "hotdog",
+            "value": 15,
+            "value_formatted": "15"
+          }
+        ]
+      }
+    ]
+  }
+}

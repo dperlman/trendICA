@@ -2,6 +2,7 @@ import unicodedata
 from typing import Dict, Any, Optional, List, Union, Tuple, Callable
 from datetime import datetime, timedelta
 import time
+import trendspy
 import pandas as pd
 import socket
 import os
@@ -14,8 +15,7 @@ from scipy import stats
 import requests
 import json
 import yaml
-from dateutil.parser import parse
-
+from APIs import search_trendspy
 from utils import (
     load_config,
     get_index_granularity,
@@ -62,19 +62,7 @@ class Trends:
             dry_run (bool): If True, no actual API calls will be made. Instead, returns zero-filled dataframes
                            and prints what the API call would have been. Defaults to False.
             verbose (bool): If True, prints detailed information about the search process. Defaults to False.
-            api (Optional[str]): Which API mode to use. Must match one of the modes defined in config.yaml:
-                               - "trendspy": Use trendspy only
-                               - "serpapi": Use SerpAPI only
-                               - "serpwow": Use SerpWow only
-                               - "searchapi": Use SearchAPI only
-                               - "smart_tpy": Use trendspy, then fall back to paid APIs in order
-                               - "smart_pyt": Use pytrends, then fall back to paid APIs (not implemented)
-                               - "smart_sel": Use selenium, then fall back to paid APIs
-                               - "smart_pay": Use paid APIs only in order
-                               If None, defaults to "trendspy" mode.
-        
-        Raises:
-            ValueError: If the specified API mode is not found in config.yaml
+            api (Optional[str]): Which API to use ("serpapi", "serpwow", "searchapi", or "trendspy"). If None, will auto-select based on available keys.
         """
         # Load config if it exists
         self.config = load_config()
@@ -87,21 +75,6 @@ class Trends:
             for api_name, key in api_keys.items():
                 if key:  # Only update if a key was provided
                     self.api_keys[api_name] = key
-        
-        # Set API mode based on api argument
-        if api:
-            # Find the matching API mode in config
-            api_modes = self.config.get('api_modes', [])
-            matching_mode = next((mode for mode in api_modes if mode['name'] == api), None)
-            if matching_mode:
-                self.api_mode = matching_mode
-            else:
-                raise ValueError(f"Invalid API mode: {api}. Must be one of: {[mode['name'] for mode in api_modes]}")
-        else:
-            # Default to trendspy mode if no API specified
-            self.api_mode = next((mode for mode in self.config.get('api_modes', []) if mode['name'] == 'trendspy'), None)
-            if not self.api_mode:
-                raise ValueError("No default API mode 'trendspy' found in config")
         
         # Set other parameters
         self.no_cache = no_cache
@@ -124,12 +97,13 @@ class Trends:
         self.warning_log = []
         self.rate_limit_log = []
 
+
     def search(
         self,
         search_term: str,
-        start_date: Union[str, datetime],
-        end_date: Optional[Union[str, datetime]] = None,
-        duration_days: Optional[int] = 270,
+        start_date: str,
+        end_date: Optional[str] = None,
+        duration_days: Optional[int] = 90,
         granularity: str = "day",
         stagger: int = 0,
         trim: bool = True,
@@ -145,8 +119,8 @@ class Trends:
         
         Args:
             search_term (str): The search term to look up in Google Trends
-            start_date (Union[str, datetime]): Start date for the search
-            end_date (Optional[Union[str, datetime]]): End date for the search
+            start_date (str): Start date for the search (e.g. "2008-01-01")
+            end_date (Optional[str]): End date for the search (e.g. "2025-04-21")
             duration_days (Optional[int]): Number of days to search from start_date if end_date not provided
             granularity (str): Time granularity for results, either "day" or "hour". Any other value will use the default API behavior.
             stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
@@ -166,16 +140,18 @@ class Trends:
         if combine not in ["none", "mean", "median", "mode"]:
             raise ValueError(f"Invalid combine method: {combine}. Must be one of: none, mean, median, mode")
             
-        # Parse dates
-        start_dt = parse(start_date) if isinstance(start_date, str) else start_date
-        end_dt = parse(end_date) if isinstance(end_date, str) and end_date else None
+        # Determine time range
+        if end_date is None:
+            time_range = None  # Will be handled by search_by_day_270
+        else:
+            time_range = f"{start_date} {end_date}"
         
         prefix = "[DRY RUN] " if self.dry_run else ""
         message = (
             f"{prefix}Preparing to perform search with:\n"
             f"  Search term: {search_term}\n"
-            f"  Start date: {start_dt}\n"
-            f"  End date: {end_dt if end_dt else 'None (using duration_days=' + str(duration_days) + ')'}\n"
+            f"  Start date: {start_date}\n"
+            f"  End date: {end_date if end_date else 'None (using duration_days=' + str(duration_days) + ')'}\n"
             f"  Granularity: {granularity}\n"
             f"  Stagger: {stagger}\n"
             f"  Scale: {scale}\n"
@@ -186,7 +162,8 @@ class Trends:
             f"  Geo: {self.geo}\n"
             f"  Category: {self.cat}"
         )
-        message += f"\n  Using API mode: {self.api_mode['name']}"
+        api_name = self._select_api()
+        message += f"\n  Using API: {api_name}"
         self._print(message)
         
         # Determine which search method will be used and initialize log
@@ -203,13 +180,12 @@ class Trends:
         if end_date is None:
             results = self._search_by_day_270(
                 search_term=search_term,
-                start_date=start_dt
+                start_date=start_date
             )
         elif granularity == "day":
             results = self._search_by_day(
                 search_term=search_term,
-                start_date=start_dt,
-                end_date=end_dt,
+                time_range=time_range,
                 stagger=stagger,
                 trim=trim,
                 scale=scale,
@@ -222,14 +198,12 @@ class Trends:
         elif granularity == "hour":
             results = self._search_by_hour(
                 search_term=search_term,
-                start_date=start_dt,
-                end_date=end_dt
+                time_range=time_range
             )
         else:
             results = self._search_with_chosen_api(
                 search_term=search_term,
-                start_date=start_dt,
-                end_date=end_dt
+                time_range=time_range
             )
 
         # Print search log summary
@@ -237,13 +211,13 @@ class Trends:
         message = (
             f"\n{prefix}Search Summary:\n"
             f"Total searches performed: {len(self.main_log)}\n"
-            f"API mode: {self.api_mode['name']}\n"
+            f"API used: {api_name}\n"
             "\nSearch details:"
         )
         for i, log in enumerate(self.main_log, 1):
             error_str = f" [ERROR: {log['error']}]" if 'error' in log else ""
             warning_str = f" [WARNING: {log['warning']}]" if 'warning' in log else ""
-            message += f"\nSearch {i}: {log['search_term']} | {log['start_date']} to {log['end_date']} | {log['api']} | {log['granularity']}{error_str}{warning_str}"
+            message += f"\nSearch {i}: {log['search_term']} | {log['time_range']} | {log['api']} | {log['granularity']}{error_str}{warning_str}"
         self._print(message)
         
         return results
@@ -489,6 +463,9 @@ class Trends:
         # Create the time range string
         time_range = f"{start_dt.strftime('%Y-%m-%d')} {end_date}"
         
+        # Get the API name for logging
+        api_name = self._select_api()
+        
         if self.dry_run:
             # Create a date range with daily frequency
             date_range = pd.date_range(start=start_dt, end=end_dt, freq='D')
@@ -498,8 +475,7 @@ class Trends:
         # Perform the search using the chosen API
         results = self._search_with_chosen_api(
             search_term=search_term,
-            start_date=start_dt,
-            end_date=end_dt
+            time_range=time_range
         )
         
         # If results is a DataFrame, validate its granularity
@@ -511,12 +487,12 @@ class Trends:
                 self._print(f"\nWARNING: {warning_msg}")
                 self._print(f"  Search term: {search_term}")
                 self._print(f"  Time range: {time_range}")
-                self._print(f"  API mode: {self.api_mode['name']}")
+                self._print(f"  API used: {api_name}")
                 # Log the warning
                 self._log(
                     search_term=search_term,
                     time_range=time_range,
-                    api=self.api_mode['name'],
+                    api=api_name,
                     granularity=actual_granularity,
                     warning=warning_msg
                 )
@@ -526,23 +502,29 @@ class Trends:
     def _search_by_hour(
         self,
         search_term: str,
-        start_date: Union[str, datetime],
-        end_date: Union[str, datetime]
+        time_range: str
     ) -> pd.DataFrame:
         """
         Perform a Google Trends search with hourly granularity over a 7-day period.
         
         Args:
             search_term (str): The search term to look up in Google Trends
-            start_date (Union[str, datetime]): Start date for the search
-            end_date (Union[str, datetime]): End date for the search
+            time_range (str): Time range for the search (e.g. "2008-01-01 2025-04-21")
             
         Returns:
             pd.DataFrame: A dataframe containing the timeseries data with hourly granularity
         """
         # Parse the time range
-        start_dt = parse(start_date) if isinstance(start_date, str) else start_date
-        end_dt = parse(end_date) if isinstance(end_date, str) and end_date else None
+        start_date, end_date = time_range.split()
+        
+        # Convert start_date to datetime if it's a string, otherwise use as is
+        if isinstance(start_date, str):
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        else:
+            start_dt = start_date
+        
+        # Calculate end_date (7 days later, non-inclusive)
+        end_dt = start_dt + timedelta(days=7) - timedelta(hours=1)
 
         if self.dry_run:
             # Create a date range with hourly frequency
@@ -560,8 +542,7 @@ class Trends:
         # Perform the search using the chosen API
         results = self._search_with_chosen_api(
             search_term=search_term,
-            start_date=start_dt,
-            end_date=end_dt
+            time_range=time_range
         )
         
         return results
@@ -663,6 +644,7 @@ class Trends:
             
         return stagger_groups
 
+
     def _print(self, *args, **kwargs):
         """
         Print message only if verbose is True.
@@ -676,8 +658,7 @@ class Trends:
     def _log(
         self,
         search_term: str,
-        start_date: Union[str, datetime],
-        end_date: Union[str, datetime],
+        time_range: str,
         api: str,
         granularity: str,
         error: Optional[str] = None,
@@ -688,9 +669,8 @@ class Trends:
         
         Args:
             search_term (str): The search term used
-            start_date (Union[str, datetime]): The start date of the search
-            end_date (Union[str, datetime]): The end date of the search
-            api (str): The API used for the search
+            time_range (str): The time range string sent to the API
+            api (str): The API used for the search ("SerpAPI", "SerpWow", or "trendspy")
             granularity (str): The granularity of the data ('h' for hour, 'D' for day, 'W' for week, or 'ME' for month end)
             error (Optional[str]): Any error message if the search failed
             warning (Optional[str]): Any warning message about the search results
@@ -698,8 +678,7 @@ class Trends:
         formatted_utc_gmtime = time.strftime("%Y-%m-%dT%H-%MUTC", time.gmtime())
         log_entry = {
             "search_term": search_term,
-            "start_date": start_date,
-            "end_date": end_date,
+            "time_range": time_range,
             "search_time": formatted_utc_gmtime,
             "api": api,
             "granularity": granularity
@@ -710,6 +689,50 @@ class Trends:
             log_entry["warning"] = warning
         self.main_log.append(log_entry)
 
+    # def _log_search(
+    #     self,
+    #     search_term: str,
+    #     time_range: str,
+    #     api: str,
+    #     granularity: Optional[str] = None,
+    #     error: Optional[str] = None,
+    #     warning: Optional[str] = None
+    # ) -> None:
+    #     """
+    #     Log a search attempt with its details and any errors.
+        
+    #     Args:
+    #         search_term (str): The search term used
+    #         time_range (str): The time range string sent to the API
+    #         api (str): The API used for the search ("SerpAPI", "SerpWow", or "trendspy")
+    #         granularity (str): The granularity of the data ('H', 'D', 'W', or 'M')
+    #         error (Optional[str]): Any error message if the search failed
+    #         warning (Optional[str]): Any warning message about the search results
+    #     """
+    #     self._log(search_term, time_range, api, granularity, error, warning)
+
+    # def _initialize_new_search_log(
+    #     self,
+    #     search_term: str,
+    #     time_range: str,
+    #     api: str,
+    #     search_type: str
+    # ) -> None:
+    #     """
+    #     Initialize a new search log.
+    #     """
+    #     formatted_utc_gmtime = time.strftime("%Y-%m-%dT%H-%MUTC", time.gmtime())
+    #     self.main_log = []
+    #     self.search_log.append({
+    #         "search_term": search_term,
+    #         "time_range": time_range,
+    #         "api": api,
+    #         "search_type": search_type,
+    #         "timestamp": formatted_utc_gmtime,
+    #         "search_log": self.main_log
+    #     })
+
+    
     def _scale_stagger_groups(
         self,
         stagger_groups: List[List[pd.DataFrame]],
@@ -876,65 +899,246 @@ class Trends:
         
         return scaled_series2
 
-    def _search_with_chosen_api(
-        self,
-        search_term: Union[str, List[str]],
-        start_date: Optional[Union[str, datetime]] = None,
-        end_date: Optional[Union[str, datetime]] = None
-    ) -> Any:
-        """
-        Search using the chosen API from the config file's api_order list.
-        
-        Args:
-            search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
-            start_date (Optional[Union[str, datetime]]): Start date for the search
-            end_date (Optional[Union[str, datetime]]): End date for the search
-            
-        Returns:
-            Any: The raw result from the API
-            
-        Raises:
-            Exception: If all APIs in the order fail
-        """
-        from .APIs import available_apis
-        
-        # Try each API in the configured order
-        for api_name in self.api_mode['api_order']:
+    def _load_apis(self):
+        if not self.api:
+            # load trendspy as default if no API was specified
+            # later we might also load pytrends if we also want to try another approach to free access
             try:
-                self.print_func(f"Trying API: {api_name}")
-                api_info = available_apis[api_name]
-                
-                # For paid APIs, check if we have the key
-                if api_info['type'] == 'paid':
-                    key_name = f"{api_name}_key"
-                    if not hasattr(self, key_name) or not getattr(self, key_name):
-                        self.print_func(f"Skipping {api_name} - no API key available")
-                        continue
-                
-                # Create API instance with our config
-                api_instance = api_info['class'](
-                    api_key=getattr(self, f"{api_name}_key", None),
+                self._print("Loading trendspy as default API since no API was specified")
+                from .api_trendspy import TrendsPy
+                self.trendspy = TrendsPy(
                     proxy=self.proxy,
                     change_identity=self.change_identity,
                     request_delay=self.request_delay,
-                    tor_control_password=self.tor_control_password,
-                    verbose=self.verbose,
-                    print_func=self.print_func,
-                    **self.api_kwargs
+                    geo=self.geo,
+                    cat=self.cat
+                )
+            except ImportError:
+                self._print("Trendspy not available. No default API loaded. We are probably about to fail.")
+                self.api = None
+        elif self.api == "trendspy":
+            # load trendspy if possible
+            try:
+                self._print("Loading trendspy")
+                from .api_trendspy import TrendsPy
+                self.trendspy = TrendsPy(
+                    proxy=self.proxy,
+                    change_identity=self.change_identity,
+                    request_delay=self.request_delay,
+                    geo=self.geo,
+                    cat=self.cat
+                )
+            except ImportError:
+                self._print("Trendspy not available.")
+                self.api = None
+        elif self.api == "serpapi":
+            pass # we are about to add this
+        elif self.api == "serpwow":
+            pass # we are about to add this
+        elif self.api == "searchapi":
+            pass # we are about to add this
+        else:
+            raise ValueError(f"Invalid API specified: {self.api}. Must be one of: serpapi, serpwow, searchapi, trendspy")
+        
+
+    def _select_api(self) -> str:
+        """
+        Select the appropriate API to use based on available API keys.
+        
+        Returns:
+            str: The name of the API to use ("serpapi", "serpwow", "searchapi", or "trendspy")
+            
+        Raises:
+            ValueError: If the chosen API's key is not available
+        """
+        # Check if a specific API was chosen
+        if self.api is not None:  # Changed from hasattr(self, 'api') and self.api
+            if self.api == "serpapi":
+                if not self.api_keys['serpapi']:
+                    raise PermissionError("SerpAPI key not available")
+                return "serpapi"
+            elif self.api == "serpwow":
+                if not self.api_keys['serpwow']:
+                    raise PermissionError("SerpWow key not available")
+                return "serpwow"
+            elif self.api == "searchapi":
+                if not self.api_keys['searchapi']:
+                    raise PermissionError("SearchAPI key not available")
+                return "searchapi"
+            elif self.api == "trendspy":
+                return "trendspy"
+            else:
+                raise ValueError(f"Invalid API specified: {self.api}. Must be one of: serpapi, serpwow, searchapi, trendspy")
+            
+
+    def _search_with_chosen_api(
+        self,
+        search_term: Union[str, List[str]],
+        time_range: Optional[str] = None
+    ) -> Union[pd.DataFrame, Dict[str, Any]]:
+        """
+        Perform a search using the appropriate API based on available API keys.
+        
+        Args:
+            search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
+            time_range (Optional[str]): Time range for the search
+            
+        Returns:
+            Union[pd.DataFrame, Dict[str, Any]]: Either a DataFrame with the trends data or a dict containing an error message
+        """
+        api_name = self._select_api()
+        if api_name == "serpapi":
+            return self._search_serpapi(search_term=search_term, time_range=time_range)
+        elif api_name == "serpwow":
+            return self._search_serpwow(search_term=search_term, time_range=time_range)
+        elif api_name == "searchapi":
+            return self._search_searchapi(search_term=search_term, time_range=time_range)
+        else:  # trendspy
+            return search_trendspy(
+                search_term=search_term,
+                time_range=time_range,
+                proxy=self.proxy,
+                change_identity=self.change_identity,
+                request_delay=self.request_delay,
+                geo=self.geo,
+                cat=self.cat,
+                verbose=self.verbose,
+                print_func=self._print,
+                tor_control_password=self.tor_control_password
+            )
+
+
+    def _search_serpapi(
+        self,
+        search_term: Union[str, List[str]],
+        time_range: Optional[str] = None
+    ) -> pd.DataFrame:
+        """
+        Search Google Trends using the SerpAPI.
+        
+        Args:
+            search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
+            time_range (Optional[str]): Time range for the search
+            
+        Returns:
+            pd.DataFrame: A dataframe containing the timeseries data
+        """
+        self._print(f"Sending SerpAPI search request:")
+        self._print(f"  Search term: {search_term}")
+        self._print(f"  Time range: {time_range if time_range else 'default'}")
+        
+        try:
+            from serpapi import GoogleSearch
+            
+            # Set up the request parameters
+            params = {
+                "api_key": self.api_keys['serpapi'],
+                "engine": "google_trends",
+                "no_cache": str(self.no_cache).lower(),
+                "q": search_term,
+                "hl": self.language,
+                "geo": self.geo,
+                "date": time_range,
+                "tz": str(self.tz)
+            }
+            
+            # Add optional parameters if provided
+            if self.cat is not None:
+                params["cat"] = str(self.cat)
+            if self.region:
+                params["region"] = self.region
+            
+            # Make the API request
+            search = GoogleSearch(params)
+            data = search.get_dict()
+            return data
+            # # Print the full response for debugging
+            # self._print("\nFull API response:")
+            # self._print(json.dumps(data, indent=2)[:10000])  # Increased from 2000 to 10000
+                        # Check if there's an error in the results
+            if isinstance(data, dict) and "error" in data:
+                error_msg = data["error"]
+                self._print(f"  Search failed: {error_msg}")
+                self._log(
+                    search_term=search_term,
+                    time_range=time_range if time_range else "default",
+                    api="serpapi",
+                    granularity="D",
+                    error=error_msg
+                )
+                return pd.DataFrame()
+            
+            # Extract the trends data
+            if 'interest_over_time' in data and 'timeline_data' in data['interest_over_time']:
+                timeline_data = data['interest_over_time']['timeline_data']
+                
+                if not timeline_data:
+                    error_msg = "No trends data found in response"
+                    self._print(f"  Search failed: {error_msg}")
+                    self._log(
+                        search_term=search_term,
+                        time_range=time_range if time_range else "default",
+                        api="serpapi",
+                        granularity="D",
+                        error=error_msg
+                    )
+                    return pd.DataFrame()
+                
+                # Create lists to store dates and values
+                dates = []
+                values = []
+                
+                # Process each data point
+                for point in timeline_data:
+                    # Convert timestamp to datetime
+                    date = datetime.fromtimestamp(int(point['timestamp']))
+                    dates.append(date)
+                    
+                    # Get the value for the search term
+                    if point['values'] and point['values'][0]['extracted_value'] is not None:
+                        value = point['values'][0]['extracted_value']
+                    else:
+                        value = 0
+                    values.append(value)
+                
+                # Create DataFrame
+                df = pd.DataFrame({
+                    search_term.replace(" ", "_"): values
+                }, index=pd.DatetimeIndex(dates))
+                
+                self._print("  Search successful!")
+                
+                # Log the search
+                self._log(
+                    search_term=search_term,
+                    time_range=time_range if time_range else "default",
+                    api="serpapi",
+                    granularity=self._get_index_granularity(df.index)
                 )
                 
-                # Perform the search and return raw result
-                return api_instance.search(
+                return df
+            else:
+                error_msg = "No trends data found in response"
+                self._print(f"  Search failed: {error_msg}")
+                self._log(
                     search_term=search_term,
-                    start_date=start_date,
-                    end_date=end_date
-                ).standardize_data()
+                    time_range=time_range if time_range else "default",
+                    api="serpapi",
+                    granularity="D",
+                    error=error_msg
+                )
+                return pd.DataFrame()
                 
-            except Exception as e:
-                self.print_func(f"Error with {api_name}: {str(e)}")
-                continue
-        
-        raise Exception("All APIs in the configured order failed")
+        except Exception as e:
+            self._print(f"  Search failed: {str(e)}")
+            self._log(
+                search_term=search_term,
+                time_range=time_range if time_range else "default",
+                api="serpapi",
+                granularity="D",
+                error=str(e)
+            )
+            raise
 
     def _search_serpwow(
         self,
@@ -1016,9 +1220,9 @@ class Trends:
                 self._print(f"  Search failed: {error_msg}")
                 self._log(
                     search_term=search_term,
-                    start_date=start_dt,
-                    end_date=end_dt,
+                    time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                     api="serpwow",
+                    granularity="D",
                     error=error_msg
                 )
                 return pd.DataFrame()
@@ -1032,9 +1236,9 @@ class Trends:
                     self._print(f"  Search failed: {error_msg}")
                     self._log(
                         search_term=search_term,
-                        start_date=start_dt,
-                        end_date=end_dt,
+                        time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                         api="serpwow",
+                        granularity="D",
                         error=error_msg
                     )
                     return pd.DataFrame()
@@ -1066,8 +1270,7 @@ class Trends:
                 # Log the search
                 self._log(
                     search_term=search_term,
-                    start_date=start_dt,
-                    end_date=end_dt,
+                    time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                     api="serpwow",
                     granularity=self._get_index_granularity(df.index)
                 )
@@ -1078,9 +1281,9 @@ class Trends:
                 self._print(f"  Search failed: {error_msg}")
                 self._log(
                     search_term=search_term,
-                    start_date=start_dt,
-                    end_date=end_dt,
+                    time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                     api="serpwow",
+                    granularity="D",
                     error=error_msg
                 )
                 return pd.DataFrame()
@@ -1089,9 +1292,9 @@ class Trends:
             self._print(f"  Search failed: {str(e)}")
             self._log(
                 search_term=search_term,
-                start_date=start_dt,
-                end_date=end_dt,
+                time_range=time_range if time_range else f"{start_dt.strftime('%Y-%m-%d')} {end_dt.strftime('%Y-%m-%d')}",
                 api="serpwow",
+                granularity="D",
                 error=str(e)
             )
             raise
@@ -1170,9 +1373,9 @@ class Trends:
                     self._print(f"  Search failed: {error_msg}")
                     self._log(
                         search_term=search_term,
-                        start_date=pd.Timestamp(timeline_data[0]['date']),
-                        end_date=pd.Timestamp(timeline_data[-1]['date']),
+                        time_range=time_range if time_range else "default",
                         api="searchapi",
+                        granularity="D",
                         error=error_msg
                     )
                     return pd.DataFrame()
@@ -1204,9 +1407,9 @@ class Trends:
                 # Log the search
                 self._log(
                     search_term=search_term,
-                    start_date=pd.Timestamp(timeline_data[0]['date']),
-                    end_date=pd.Timestamp(timeline_data[-1]['date']),
-                    api="searchapi"
+                    time_range=time_range if time_range else "default",
+                    api="searchapi",
+                    granularity=self._get_index_granularity(df.index)
                 )
                 
                 return df
@@ -1215,9 +1418,9 @@ class Trends:
                 self._print(f"  Search failed: {error_msg}")
                 self._log(
                     search_term=search_term,
-                    start_date=pd.Timestamp(timeline_data[0]['date']),
-                    end_date=pd.Timestamp(timeline_data[-1]['date']),
+                    time_range=time_range if time_range else "default",
                     api="searchapi",
+                    granularity="D",
                     error=error_msg
                 )
                 return pd.DataFrame()
@@ -1226,9 +1429,9 @@ class Trends:
             self._print(f"  Search failed: {str(e)}")
             self._log(
                 search_term=search_term,
-                start_date=pd.Timestamp(timeline_data[0]['date']),
-                end_date=pd.Timestamp(timeline_data[-1]['date']),
+                time_range=time_range if time_range else "default",
                 api="searchapi",
+                granularity="D",
                 error=str(e)
             )
             raise

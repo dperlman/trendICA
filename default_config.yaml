@@ -1,0 +1,58 @@
+api_keys:
+  serpapi: "my_serpapi_key"
+  serpwow: "my_serpwow_key"
+  searchapi: "my_searchapi_key"
+
+tor:
+  control_password: "controlpass" 
+
+api_modes:
+  - name: "trendspy"
+    description: "trendspy only"
+    api_order:
+
+  - name: "serpapi"
+    description: "serpapi"
+    api_order:
+      - serpapi
+
+  - name: "serpwow"
+    description: "serpwow"
+    api_order:
+      - serpwow
+
+  - name: "searchapi"
+    description: "searchapi"
+    api_order:
+      - searchapi
+
+  - name: "smart_tpy"
+    description: "trendspy:serpapi:serpwow:searchapi"
+    api_order:
+      - trendspy
+      - serpapi
+      - serpwow
+      - searchapi
+
+  - name: "smart_pyt"
+    description: "NOT IMPLEMENTED! pytrends:serpapi:serpwow:searchapi"
+    api_order:
+      - pytrends
+      - serpapi
+      - serpwow
+      - searchapi
+
+  - name: "smart_sel"
+    description: "selenium:serpapi:serpwow:searchapi"
+    api_order:
+      - selenium
+      - serpapi
+      - serpwow
+      - searchapi
+  
+  - name: "smart_pay"
+    description: "serpapi:serpwow:searchapi"
+    api_order:
+      - serpapi
+      - serpwow
+      - searchapi
