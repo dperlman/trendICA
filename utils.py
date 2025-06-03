@@ -33,7 +33,7 @@ def load_config() -> dict:
     return config
 
 
-def change_tor_identity(password: Optional[str], print_func: Optional[Callable] = None, control_port: int = 9151) -> None:
+def change_tor_identity(password: Optional[str], print_func: Optional[Callable] = None, control_port: Optional[int] = None) -> None:
     """
     Change the Tor identity by connecting to the Tor control port and sending a NEWNYM signal.
     Includes error handling and retry logic.
@@ -41,7 +41,7 @@ def change_tor_identity(password: Optional[str], print_func: Optional[Callable] 
     Args:
         password (Optional[str]): Password for Tor control port
         print_func (Optional[Callable]): Function to use for printing debug information
-        control_port (int): Port number for Tor control port. Defaults to 9151
+        control_port (Optional[int]): Port number for Tor control port. If None, uses value from config.yaml
     """
     if print_func is None:
         print_func = print
@@ -56,6 +56,11 @@ def change_tor_identity(password: Optional[str], print_func: Optional[Callable] 
     if not password:
         print_func("Error: Tor control password not provided")
         return
+
+    # Load control port from config if not provided
+    if control_port is None:
+        config = load_config()
+        control_port = config.get('tor', {}).get('control_port', 9151)  # Default to 9151 if not found in config
 
     try:
         # Try to connect to the Tor control port
@@ -133,8 +138,9 @@ def get_index_granularity(index: pd.DatetimeIndex, verbose: bool = False) -> str
 def calculate_search_granularity(
     start_date: Union[str, datetime],
     end_date: Union[str, datetime],
+    config: Optional[Dict[str, Any]] = None,
     verbose: bool = False
-) -> Dict[str, Union[str, pd.DatetimeIndex, pd.PeriodIndex]]:
+) -> Dict[str, Union[str, pd.DatetimeIndex, pd.PeriodIndex, int]]:
     """
     Calculate the appropriate granularity for a Google Trends search based on the time range
     and generate the corresponding DateTimeIndex and PeriodIndex.
@@ -142,14 +148,26 @@ def calculate_search_granularity(
     Args:
         start_date (Union[str, datetime]): Start date of the search
         end_date (Union[str, datetime]): End date of the search
+        config (Optional[Dict[str, Any]]): Configuration dictionary containing granularity rules
         verbose (bool): Whether to print debug information
         
     Returns:
-        Dict[str, Union[str, pd.DatetimeIndex, pd.PeriodIndex]]: Dictionary containing:
+        Dict[str, Union[str, pd.DatetimeIndex, pd.PeriodIndex, int]]: Dictionary containing:
             - "granularity": The appropriate granularity to use ("h" for hour, "D" for day, "W" for week, or "MS" for month start)
             - "datetime_index": A pandas DateTimeIndex with the appropriate frequency
             - "period_index": A pandas PeriodIndex with the appropriate frequency
+            - "max_units": The maximum number of units possible for the calculated granularity
     """
+    # Get granularity rules from config or use defaults
+    default_rules = [
+        {'name': 'hourly', 'max_days': 8, 'max_inclusive': True, 'code': 'h'},
+        {'name': 'daily', 'max_days': 270, 'max_inclusive': True, 'code': 'D'},
+        {'name': 'weekly', 'max_days': 1900, 'max_inclusive': True, 'code': 'W'},
+        {'name': 'monthly', 'code': 'MS'}
+    ]
+    
+    granularity_rules = config.get('granularity_rules', default_rules) if config else default_rules
+    
     # Convert dates to datetime if they're strings
     if isinstance(start_date, str):
         start_dt = datetime.strptime(start_date, "%Y-%m-%d")
@@ -164,35 +182,41 @@ def calculate_search_granularity(
     # Calculate the time range in days
     days_diff = (end_dt - start_dt).days
     
-    # Determine granularity based on time range
-    if days_diff < 8:  # Less than 8 days
-        granularity = 'h'
-    elif 8 <= days_diff < 270:  # Between 8 days and 270 days
-        granularity = 'D'
-    elif 270 <= days_diff < 1900:  # Between 270 days and 1900 days
-        granularity = 'W'
-    else:  # More than 1900 days
-        granularity = 'MS'
+    # Determine granularity based on rules in order
+    for rule in granularity_rules:
+        if 'max_days' in rule:
+            if rule['max_inclusive']:
+                if days_diff <= rule['max_days']:
+                    granularity = rule['code']
+                    max_units = rule['max_days']
+                    break
+            else:
+                if days_diff < rule['max_days']:
+                    granularity = rule['code']
+                    max_units = rule['max_days']
+                    break
+        else:
+            # Last rule (monthly) has no max_days
+            granularity = rule['code']
+            max_units = None  # No limit for monthly
+            break
     
     # Create DateTimeIndex with appropriate frequency, ensuring both start and end dates are included
     datetime_index = pd.date_range(start=start_dt, end=end_dt, freq=granularity, inclusive='both')
     
     # Create PeriodIndex with appropriate frequency
-    # For hourly granularity, use 'h'
-    # For daily granularity, use 'D'
-    # For weekly granularity, use 'W'
-    # For monthly granularity, use 'MS'
-    period_freq = 'h' if granularity == 'h' else 'D' if granularity == 'D' else 'W' if granularity == 'W' else 'MS'
-    period_index = pd.period_range(start=start_dt, end=end_dt, freq=period_freq)
+    period_index = pd.period_range(start=start_dt, end=end_dt, freq=granularity)
     
     if verbose:
         _print_if_verbose(f"Granularity for date range {start_dt.strftime('%Y-%m-%d')} to {end_dt.strftime('%Y-%m-%d')} ({days_diff} days) is {granularity}", verbose)
         _print_if_verbose(f"Created {len(datetime_index)} datetime periods and {len(period_index)} period indices", verbose)
+        _print_if_verbose(f"Maximum units for {granularity} granularity: {max_units if max_units is not None else '[no limit]'}", verbose)
     
     return {
         "granularity": granularity,
         "datetime_index": datetime_index,
-        "period_index": period_index
+        "period_index": period_index,
+        "max_units": max_units
     }
 
 def _custom_mode(df: pd.DataFrame, axis: int = 1) -> pd.Series:
@@ -488,3 +512,68 @@ def make_time_range(
         start_datetime=start_date,
         end_datetime=end_date
     )
+
+def standard_dict_to_df(standardized_data: List[Dict[str, Any]]) -> pd.DataFrame:
+    """
+    Convert standardized dictionary format to a pandas DataFrame.
+    
+    Args:
+        standardized_data (List[Dict[str, Any]]): List of dictionaries in standardized format,
+            where each dict has 'date' and 'values' keys. The 'values' key contains a list of
+            dicts with 'query' and 'value' keys.
+            
+    Returns:
+        pd.DataFrame: DataFrame with dates as PeriodIndex and one column per search term.
+            Column names are sanitized versions of the search terms.
+    """
+    # Create a dictionary to store the data
+    data_dict = {}
+    
+    # Process each entry in the standardized data
+    for entry in standardized_data:
+        date = entry['date']
+        for value_dict in entry['values']:
+            query = value_dict['query']
+            value = value_dict['value']
+            
+            # Sanitize the query name for use as a column name
+            sanitized_query = query.replace(' ', '_').lower()
+            
+            # Add the value to the data dictionary
+            if sanitized_query not in data_dict:
+                data_dict[sanitized_query] = {}
+            data_dict[sanitized_query][date] = value
+    
+    # Create DataFrame from the dictionary
+    df = pd.DataFrame(data_dict)
+    
+    # Convert index to datetime first, then to period
+    df.index = pd.to_datetime(df.index)
+    
+    # Determine the appropriate frequency for the PeriodIndex
+    # Get the time differences between consecutive dates
+    time_diffs = df.index.to_series().diff()
+    
+    # If all differences are 1 day, use daily frequency
+    if (time_diffs == pd.Timedelta(days=1)).all():
+        freq = 'D'
+    # If all differences are 1 week, use weekly frequency
+    elif (time_diffs == pd.Timedelta(weeks=1)).all():
+        freq = 'W'
+    # If all dates are the first of the month, use monthly frequency
+    elif (df.index.day == 1).all():
+        freq = 'MS'
+    # If all differences are 1 hour, use hourly frequency
+    elif (time_diffs == pd.Timedelta(hours=1)).all():
+        freq = 'h'
+    else:
+        # Default to daily frequency if we can't determine
+        freq = 'D'
+    
+    # Convert to PeriodIndex
+    df.index = df.index.to_period(freq)
+    
+    # Sort by date
+    df = df.sort_index()
+    
+    return df

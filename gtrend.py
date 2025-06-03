@@ -12,8 +12,12 @@ from utils import (
     load_config,
     get_index_granularity,
     _custom_mode,
-    _print_if_verbose
+    _print_if_verbose,
+    calculate_search_granularity
 )
+
+# Import API_Call type for type hints
+from APIs import API_Call
 
 class Trends:
     def __init__(
@@ -38,7 +42,7 @@ class Trends:
         Args:
             api_keys (Optional[Dict[str, str]]): Dictionary of API keys, e.g. {'serpapi': 'key1', 'serpwow': 'key2'}
             no_cache (bool): Whether to skip cached results (only used with SerpAPI)
-            proxy (Optional[str]): The proxy to use. If None, no proxy will be used. For Tor, use "127.0.0.1:9150"
+            proxy (Optional[str]): The proxy to use. If None, will use proxy from config.yaml if available
             change_identity (bool): Whether to change Tor identity between iterations. Only used if proxy is provided
             request_delay (int): Delay between requests in seconds
             geo (str): Geographic location for the search (e.g. "US"). Defaults to "US"
@@ -103,13 +107,47 @@ class Trends:
         self.dry_run = dry_run
         self.verbose = verbose
         self.api = api
-        self.tor_control_password = self.config.get('tor', {}).get('control_password')
+        
+        # Load Tor settings from config
+        tor_config = self.config.get('tor', {})
+        self.tor_control_password = tor_config.get('control_password')
+        
+        # Set proxy - use provided value or load from config
+        if proxy is None and tor_config.get('proxy_port'):
+            self.proxy = f"127.0.0.1:{tor_config['proxy_port']}"
+        else:
+            self.proxy = proxy
         
         # Initialize search logs
         self.main_log = []
         self.error_log = []
         self.warning_log = []
         self.rate_limit_log = []
+        
+        # Initialize API instances dictionary
+        self.api_instances = {}
+
+        # Set up wrapper methods for utility functions
+        def _calculate_search_granularity_wrapper(
+            start_date: Union[str, datetime],
+            end_date: Union[str, datetime],
+            verbose: Optional[bool] = None
+        ) -> Dict[str, Union[str, pd.DatetimeIndex, pd.PeriodIndex]]:
+            """Wrapper for calculate_search_granularity that includes config."""
+            return calculate_search_granularity(
+                start_date=start_date,
+                end_date=end_date,
+                config=self.config,
+                verbose=verbose if verbose is not None else self.verbose
+            )
+
+        def _get_index_granularity_wrapper(index: pd.DatetimeIndex) -> str:
+            """Wrapper for get_index_granularity."""
+            return get_index_granularity(index)
+
+        # Bind the wrapper methods to the instance
+        self._calculate_search_granularity = _calculate_search_granularity_wrapper
+        self._get_index_granularity = _get_index_granularity_wrapper
 
     def search(
         self,
@@ -117,7 +155,7 @@ class Trends:
         start_date: Union[str, datetime],
         end_date: Optional[Union[str, datetime]] = None,
         duration_days: Optional[int] = 270,
-        granularity: str = "day",
+        granularity: str = "D",
         stagger: int = 0,
         trim: bool = True,
         scale: bool = True,
@@ -126,7 +164,7 @@ class Trends:
         round: int = 2,
         method: str = "MAD",
         raw_groups: bool = False
-    ) -> pd.DataFrame:
+    ) -> 'Trends':
         """
         Search Google Trends for a given query.
         
@@ -135,7 +173,11 @@ class Trends:
             start_date (Union[str, datetime]): Start date for the search
             end_date (Optional[Union[str, datetime]]): End date for the search
             duration_days (Optional[int]): Number of days to search from start_date if end_date not provided
-            granularity (str): Time granularity for results, either "day" or "hour". Any other value will use the default API behavior.
+            granularity (str): Time granularity for results. One of:
+                - "D": Daily
+                - "h": Hourly
+                - "MS": Month start
+                Defaults to "D"
             stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
                           2 means 67% overlap, etc.
             trim (bool): Whether to drop rows with NA values because of the staggering. Defaults to True.
@@ -147,7 +189,7 @@ class Trends:
             raw_groups (bool): If True, returns the raw stagger groups without concatenating. Defaults to False.
             
         Returns:
-            pd.DataFrame: DataFrame containing the Google Trends data
+            Trends: Returns self for method chaining
         """
         # Validate combine parameter
         if combine not in ["none", "mean", "median", "mode"]:
@@ -176,48 +218,61 @@ class Trends:
         message += f"\n  Using API mode: {self.api_mode['name']}"
         self._print(message)
         
-        # Determine which search method will be used and initialize log
-        if end_date is None:
-            search_type = "search_by_day_270"
-        elif granularity == "day":
-            search_type = "search_by_day"
-        elif granularity == "hour":
-            search_type = "search_by_hour"
-        else:
-            search_type = "_search_with_chosen_api"
-            
+        # If no end_date provided, calculate it from duration_days
+        if end_dt is None:
+            if granularity == "D":
+                end_dt = start_dt + timedelta(days=duration_days)
+            elif granularity == "h":
+                end_dt = start_dt + timedelta(hours=duration_days * 24)
+            else:  # MS
+                # For month start, we'll use duration_days as approximate months
+                end_dt = start_dt
+                for _ in range(duration_days):
+                    # Get the last day of the current month
+                    last_day = (end_dt.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+                    # Move to the first day of next month
+                    end_dt = (last_day + timedelta(days=1)).replace(day=1)
+        
+        # Calculate appropriate granularity based on date range
+        granularity_info = self._calculate_search_granularity(
+            start_date=start_dt,
+            end_date=end_dt
+        )
+        granularity = granularity_info['granularity']
+        
         # Choose appropriate search function based on parameters
-        if end_date is None:
-            results = self._search_by_day_270(
+        if stagger > 0:
+            # Use staggered search for any granularity when stagger is requested
+            results = self._search_staggered(
                 search_term=search_term,
-                start_date=start_dt
-            )
-        elif granularity == "day":
-            results = self._search_by_day(
-                search_term=search_term,
-                start_date=start_dt,
-                end_date=end_dt,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                granularity=granularity,
+                search_unit_length=duration_days,
                 stagger=stagger,
-                trim=trim,
                 scale=scale,
-                combine=combine,
-                final_scale=final_scale,
-                round=round,
-                method=method,
-                raw_groups=raw_groups
-            )
-        elif granularity == "hour":
-            results = self._search_by_hour(
-                search_term=search_term,
-                start_date=start_dt,
-                end_date=end_dt
+                method=method
             )
         else:
-            results = self._search_with_chosen_api(
-                search_term=search_term,
-                start_date=start_dt,
-                end_date=end_dt
-            )
+            # For non-staggered searches, use appropriate method based on granularity
+            if granularity == "D":
+                results = self._search_by_day(
+                    search_term=search_term,
+                    start_date=start_dt,
+                    end_date=end_dt
+                )
+            elif granularity == "h":
+                results = self._search_by_hour(
+                    search_term=search_term,
+                    start_date=start_dt,
+                    end_date=end_dt
+                )
+            else:  # MS
+                results = self._search_by_day(
+                    search_term=search_term,
+                    start_date=start_dt,
+                    end_date=end_dt
+                )
 
         # Print search log summary
         prefix = "[DRY RUN] " if self.dry_run else ""
@@ -233,7 +288,7 @@ class Trends:
             message += f"\nSearch {i}: {log['search_term']} | {log['start_date']} to {log['end_date']} | {log['api']} | {log['granularity']}{error_str}{warning_str}"
         self._print(message)
         
-        return results
+        return self
 
     def search_by_day(
         self,
@@ -248,9 +303,9 @@ class Trends:
         round: int = 2,
         method: str = "MAD",
         raw_groups: bool = False
-    ) -> Union[pd.DataFrame, List[List[pd.DataFrame]], Dict[str, str], List[datetime]]:
+    ) -> 'Trends':
         """
-        Perform a Google Trends search with daily granularity.
+        Search Google Trends for a given query with daily granularity.
         
         Args:
             search_term (str): The search term to look up in Google Trends
@@ -267,21 +322,12 @@ class Trends:
             raw_groups (bool): If True, returns the raw stagger groups without concatenating. Defaults to False.
             
         Returns:
-            Union[pd.DataFrame, List[List[pd.DataFrame]], Dict[str, str], List[datetime]]: 
-                - If raw_groups is True: Returns the raw stagger groups
-                - If dry_run is True: Returns a processed DataFrame with dummy data (zero values)
-                - If an error occurs: Returns a dictionary with error information
-                - Otherwise: Returns a processed DataFrame with the combined and scaled results
+            Trends: Returns self for method chaining
         """
-        # Convert dates to datetime objects if they're strings
-        start_dt = parse(start_date) if isinstance(start_date, str) else start_date
-        end_dt = parse(end_date) if isinstance(end_date, str) and end_date else None
-
-        
-        return self._search_by_day(
+        self._search_by_day(
             search_term=search_term,
-            start_date=start_dt,
-            end_date=end_dt,
+            start_date=start_date,
+            end_date=end_date,
             stagger=stagger,
             trim=trim,
             scale=scale,
@@ -291,6 +337,7 @@ class Trends:
             method=method,
             raw_groups=raw_groups
         )
+        return self
 
     def _search_by_day(
         self,
@@ -385,6 +432,7 @@ class Trends:
             search_term=search_term,
             start_dt=start_dt,
             end_dt=end_dt,
+            granularity=granularity,
             stagger=stagger,
             scale=scale,
             method=method
@@ -480,11 +528,14 @@ class Trends:
             return result
         
         # Perform the search using the chosen API
-        results = self._search_with_chosen_api(
+        api_instance = self._search_with_chosen_api(
             search_term=search_term,
             start_date=start_dt,
             end_date=end_dt
         )
+        
+        # Get the raw data from the API instance
+        results = api_instance.standardize_data().make_dataframe().dataframe
         
         # If results is a DataFrame, validate its granularity
         if isinstance(results, pd.DataFrame):
@@ -558,11 +609,14 @@ class Trends:
         end_date = end_dt.strftime("%Y-%m-%dT%H")
         
         # Perform the search using the chosen API
-        results = self._search_with_chosen_api(
+        api_instance = self._search_with_chosen_api(
             search_term=search_term,
             start_date=start_dt,
             end_date=end_dt
         )
+        
+        # Get the raw data from the API instance
+        results = api_instance.standardize_data().make_dataframe().dataframe
         
         # Apply final scaling if requested
         if final_scale and not self.dry_run:
@@ -576,41 +630,57 @@ class Trends:
             
         return results
 
-    def _search_staggered(
+    def _calculate_stagger(
         self,
-        search_term: str,
         start_dt: datetime,
         end_dt: datetime,
-        stagger: int = 0,
-        scale: bool = True,
-        method: str = "MAD"
-    ) -> List[List[pd.DataFrame]]:
+        granularity: str = "D",
+        search_unit_length: int = 270,
+        stagger: int = 0
+    ) -> List[Dict[str, Any]]:
         """
-        Perform staggered searches over multiple 270-day intervals.
+        Calculate the stagger intervals for a given date range.
         
         Args:
-            search_term (str): The search term to look up in Google Trends
             start_dt (datetime): Start date for the search
             end_dt (datetime): End date for the search
+            granularity (str): Time granularity for results. One of:
+                - "D": Daily
+                - "h": Hourly
+                - "MS": Month start
+                Defaults to "D"
+            search_unit_length (int): Number of time units in each search. Defaults to 270 (days)
             stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
                           2 means 67% overlap, etc.
-            scale (bool): Whether to scale overlapping intervals. Defaults to True.
-            method (str): Method to use for scaling overlapping intervals. Options are 'SSD' or 'MAD'. Defaults to 'MAD'.
             
         Returns:
-            List[List[pd.DataFrame]]: List of stagger groups, each containing a list of dataframes.
-            Each dataframe contains 270 days of data with daily granularity.
-            
-        Note:
-            - Each interval is exactly 270 days long
-            - If stagger > 0, intervals will overlap according to the stagger factor
-            - If scale is True, overlapping intervals will be scaled to minimize differences
-            - In dry run mode, returns dummy dataframes with zero values
-            - Uses instance properties dry_run and verbose for execution control
+            List[Dict[str, Any]]: List of dictionaries containing search information:
+                - start_date: datetime - The start date for this search
+                - group_idx: int - Which stagger group this search belongs to (0 to stagger)
+                - interval_idx: int - Which interval within the group this is
+                
+        Raises:
+            ValueError: If granularity is not one of "D", "h", or "MS"
         """
-        # Calculate number of 270-day intervals needed
-        total_days = (end_dt - start_dt).days
-        base_intervals = math.ceil(total_days / 270)
+        # Validate granularity
+        if granularity not in ["D", "h", "MS"]:
+            raise ValueError("granularity must be one of: 'D' (daily), 'h' (hourly), or 'MS' (month start)")
+            
+        # Calculate total time units between start and end
+        if granularity == "D":
+            total_units = (end_dt - start_dt).days
+            time_unit = timedelta(days=1)
+        elif granularity == "h":
+            total_units = int((end_dt - start_dt).total_seconds() / 3600)
+            time_unit = timedelta(hours=1)
+        else:  # MS
+            # Calculate months between dates
+            total_units = (end_dt.year - start_dt.year) * 12 + (end_dt.month - start_dt.month)
+            # For month start, we'll use a month as the time unit
+            time_unit = timedelta(days=30)  # Approximate, will be adjusted in the loop
+            
+        # Calculate number of intervals needed
+        base_intervals = math.ceil(total_units / search_unit_length)
         
         # Calculate overlap factor
         if stagger == 0:
@@ -618,8 +688,89 @@ class Trends:
         else:
             overlap_factor = 1 / (stagger + 1)
         
-        # Calculate stagger days
-        stagger_days = math.floor(270 * overlap_factor)
+        # Calculate stagger units
+        stagger_units = math.floor(search_unit_length * overlap_factor)
+        
+        # Create list to store search information
+        searches = []
+        
+        # For each stagger group
+        for s in range(stagger + 1):
+            # Calculate current start based on stagger units
+            if granularity == "MS":
+                # For month start, we need to handle month boundaries
+                current_start = start_dt.replace(day=1)  # Start of month
+                # Move back by stagger months
+                for _ in range((stagger - s) * stagger_units):
+                    current_start = (current_start.replace(day=1) - timedelta(days=1)).replace(day=1)
+            else:
+                current_start = start_dt - (time_unit * (stagger - s) * stagger_units)
+            
+            # Calculate how many intervals we need for this group
+            # For the last group, we need base_intervals
+            # For other groups, we need base_intervals + 1
+            intervals_needed = base_intervals if s == stagger else base_intervals + 1
+            
+            # Add each interval to the list
+            for i in range(intervals_needed):
+                searches.append({
+                    'start_date': current_start,
+                    'group_idx': s,
+                    'interval_idx': i
+                })
+                if granularity == "MS":
+                    # Move forward by search_unit_length months
+                    for _ in range(search_unit_length):
+                        # Get the last day of the current month
+                        last_day = (current_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+                        # Move to the first day of next month
+                        current_start = (last_day + timedelta(days=1)).replace(day=1)
+                else:
+                    current_start = current_start + (time_unit * search_unit_length)
+        
+        return searches
+
+    def _search_staggered(
+        self,
+        search_term: str,
+        start_dt: datetime,
+        end_dt: datetime,
+        granularity: str = "D",
+        search_unit_length: int = 270,
+        stagger: int = 0,
+        scale: bool = True,
+        method: str = "MAD"
+    ) -> List[List[pd.DataFrame]]:
+        """
+        Perform staggered searches over multiple intervals.
+        
+        Args:
+            search_term (str): The search term to look up in Google Trends
+            start_dt (datetime): Start date for the search
+            end_dt (datetime): End date for the search
+            granularity (str): Time granularity for results. One of:
+                - "D": Daily
+                - "h": Hourly
+                - "MS": Month start
+                Defaults to "D"
+            search_unit_length (int): Number of time units in each search. Defaults to 270 (days)
+            stagger (int): Number of overlapping intervals. 0 means no overlap, 1 means 50% overlap,
+                          2 means 67% overlap, etc.
+            scale (bool): Whether to scale overlapping intervals. Defaults to True.
+            method (str): Method to use for scaling overlapping intervals. Options are 'SSD' or 'MAD'. Defaults to 'MAD'.
+            
+        Returns:
+            List[List[pd.DataFrame]]: List of stagger groups, each containing a list of dataframes.
+            Each dataframe contains search_unit_length time units of data with specified granularity.
+        """
+        # Calculate all the searches we need to perform
+        searches = self._calculate_stagger(
+            start_dt=start_dt,
+            end_dt=end_dt,
+            granularity=granularity,
+            search_unit_length=search_unit_length,
+            stagger=stagger
+        )
         
         # Create list to store results for each stagger group
         stagger_groups = [[] for _ in range(stagger + 1)]
@@ -627,45 +778,48 @@ class Trends:
         # Initialize search counter
         search_count = 0
         
-        # For each stagger group
-        for s in range(stagger + 1):
-            # Calculate current start based on stagger days
-            current_start = start_dt - timedelta(days=(stagger - s) * stagger_days)
-            
-            # Calculate how many intervals we need for this group
-            # For the last group, we need base_intervals
-            # For other groups, we need base_intervals + 1
-            intervals_needed = base_intervals if s == stagger else base_intervals + 1
-            
-            # Collect intervals for this stagger group
-            for i in range(intervals_needed):
-                search_count += 1
-                if self.dry_run:
-                    # Create a 270-day range for this interval
-                    interval_end = current_start + timedelta(days=269)
-                    interval_range = pd.date_range(start=current_start, end=interval_end, freq='D')
-                    result = pd.DataFrame(0, index=interval_range, columns=[search_term.replace(" ", "_")])
-                else:
-                    result = self._search_by_day_270(
-                        search_term=search_term,
-                        start_date=current_start
-                    )
-                
-                # Check for error in result
-                if isinstance(result, dict):
-                    result['search_count'] = search_count
-                    self._print(f"Error in search: {result}")
-                    return []
-                
-                stagger_groups[s].append(result)
-                current_start = current_start + timedelta(days=270)
+        # Perform each search and store results in appropriate group
+        for search_info in searches:
+            search_count += 1
+            if granularity == "D":
+                # Calculate end date based on search_unit_length
+                end_date = search_info['start_date'] + timedelta(days=search_unit_length)
+                result = self._search_by_day(
+                    search_term=search_term,
+                    start_date=search_info['start_date'],
+                    end_date=end_date
+                )
+            elif granularity == "h":
+                result = self._search_by_hour(
+                    search_term=search_term,
+                    start_date=search_info['start_date'],
+                    end_date=search_info['start_date'] + timedelta(hours=search_unit_length)
+                )
+            else:  # MS
+                # For month start, calculate end date by moving forward search_unit_length months
+                end_date = search_info['start_date']
+                for _ in range(search_unit_length):
+                    # Get the last day of the current month
+                    last_day = (end_date.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+                    # Move to the first day of next month
+                    end_date = (last_day + timedelta(days=1)).replace(day=1)
+                result = self._search_by_day(
+                    search_term=search_term,
+                    start_date=search_info['start_date'],
+                    end_date=end_date
+                )
+            stagger_groups[search_info['group_idx']].append(result)
         
         if self.dry_run:
             self._print(f"[DRY RUN] Would perform {search_count} searches:")
             for s, group in enumerate(stagger_groups):
                 for i, df in enumerate(group):
-                    start_date = df.index[0].strftime('%Y-%m-%d')
-                    end_date = df.index[-1].strftime('%Y-%m-%d')
+                    if granularity == "h":
+                        date_format = '%Y-%m-%d %H:%M'
+                    else:
+                        date_format = '%Y-%m-%d'
+                    start_date = df.index[0].strftime(date_format)
+                    end_date = df.index[-1].strftime(date_format)
                     self._print(f"Group {s+1}, Interval {i+1}: {start_date} to {end_date}")
         
         if stagger > 0 and scale and not self.dry_run:
@@ -891,7 +1045,7 @@ class Trends:
         search_term: Union[str, List[str]],
         start_date: Union[str, datetime],
         end_date: Union[str, datetime]
-    ) -> Any:
+    ) -> API_Call:
         """
         Search using the chosen API from the config file's api_order list.
         
@@ -901,7 +1055,7 @@ class Trends:
             end_date (Union[str, datetime]): End date for the search
             
         Returns:
-            Any: The raw result from the API
+            API_Call: The API instance that performed the search
             
         Raises:
             Exception: If all APIs in the order fail
@@ -910,17 +1064,20 @@ class Trends:
         
         # Try each API in the configured order
         for api_name in self.api_mode['api_order']:
-            try:
-                self._print(f"Trying API: {api_name}")
-                api_info = available_apis[api_name]
-                
-                # For paid APIs, check if we have the key
-                if api_info['type'] == 'paid':
-                    if api_name not in self.api_keys or not self.api_keys[api_name]:
-                        self._print(f"Skipping {api_name} - no API key available")
-                        continue
-                
-                # Create API instance with our config
+            self._print(f"Trying API: {api_name}")
+            api_info = available_apis[api_name]
+            
+            # For paid APIs, check if we have the key
+            if api_info['type'] == 'paid':
+                if api_name not in self.api_keys or not self.api_keys[api_name]:
+                    self._print(f"Skipping {api_name} - no API key available")
+                    continue
+            
+            # Try to reuse existing API instance if available
+            if api_name in self.api_instances:
+                api_instance = self.api_instances[api_name]
+            else:
+                # Create new API instance with our config
                 api_instance = api_info['class'](
                     api_key=self.api_keys.get(api_name),
                     proxy=self.proxy,
@@ -930,19 +1087,79 @@ class Trends:
                     verbose=self.verbose,
                     print_func=self._print
                 )
-                
-                # Perform the search and return raw result
-                return api_instance.search(
+                # Store the instance for potential reuse
+                self.api_instances[api_name] = api_instance
+            
+            # Try to perform the search
+            try:
+                api_instance.search(
                     search_term=search_term,
                     start_date=start_date,
                     end_date=end_date
-                ).standardize_data().data
-                
+                )
+                return api_instance
             except Exception as e:
                 self._print(f"Error with {api_name}: {str(e)}")
                 continue
         
         raise Exception("All APIs in the configured order failed")
+
+    def standardize_data(self) -> 'Trends':
+        """
+        Forward the standardize_data call to the API instance.
+        
+        Returns:
+            Trends: Returns self for method chaining
+        """
+        if not hasattr(self, 'api_instance') or not self.api_instance:
+            raise ValueError("No API instance available. Call search() first.")
+            
+        self.api_instance.standardize_data()
+        return self
+
+    def make_dataframe(self) -> 'Trends':
+        """
+        Forward the make_dataframe call to the API instance.
+        
+        Returns:
+            Trends: Returns self for method chaining
+        """
+        if not hasattr(self, 'api_instance') or not self.api_instance:
+            raise ValueError("No API instance available. Call search() first.")
+            
+        self.api_instance.make_dataframe()
+        return self
+
+    @property
+    def data(self):
+        """
+        Forward the data property to the API instance.
+        """
+        if not hasattr(self, 'api_instance') or not self.api_instance:
+            raise ValueError("No API instance available. Call search() first.")
+            
+        return self.api_instance.data
+
+    @property
+    def raw_data(self):
+        """
+        Forward the raw_data property to the API instance.
+        """
+        if not hasattr(self, 'api_instance') or not self.api_instance:
+            raise ValueError("No API instance available. Call search() first.")
+            
+        return self.api_instance.raw_data
+
+    @property
+    def df(self):
+        """
+        Forward the dataframe property to the API instance.
+        """
+        if not hasattr(self, 'api_instance') or not self.api_instance:
+            raise ValueError("No API instance available. Call search() first.")
+            
+        return self.api_instance.dataframe
+
 
 # Example usage
 if __name__ == "__main__":

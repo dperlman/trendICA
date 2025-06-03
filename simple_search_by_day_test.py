@@ -49,7 +49,7 @@ def main():
     
     # Initialize Trends instance with smart_tpy mode
     trends = Trends(
-        api="serpapi",
+        api="smart_tpy",
         verbose=verbose,
         proxy="127.0.0.1:9150",
         change_identity=True

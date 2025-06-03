@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
 import pandas as pd
 import unicodedata
-from utils import make_time_range
+from .api_utils import make_time_range
 from .base_classes import API_Call
 
 class SearchApi(API_Call):

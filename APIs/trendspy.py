@@ -2,7 +2,7 @@ import time
 import requests
 from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
-from utils import change_tor_identity, make_time_range
+from .api_utils import change_tor_identity, make_time_range
 from .base_classes import API_Call
 import pandas as pd
 
@@ -19,7 +19,7 @@ class TrendsPy(API_Call):
         Initialize the TrendsPy class.
         
         Args:
-            proxy (Optional[str]): The proxy to use. If None, no proxy will be used. For Tor, use "127.0.0.1:9150"
+            proxy (Optional[str]): The proxy to use. If None, will use proxy from config.yaml if available
             change_identity (bool): Whether to change Tor identity between iterations. Only used if proxy is provided
             request_delay (int): Delay between requests in seconds
             tor_control_password (Optional[str]): Password for Tor control port. Required if change_identity is True
@@ -171,7 +171,7 @@ def search_trendspy(
         search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
         start_date (Optional[Union[str, datetime]]): Start date for the search
         end_date (Optional[Union[str, datetime]]): End date for the search
-        proxy (Optional[str]): The proxy to use. If None, no proxy will be used. For Tor, use "127.0.0.1:9150"
+        proxy (Optional[str]): The proxy to use. If None, will use proxy from config.yaml if available
         change_identity (bool): Whether to change Tor identity between iterations. Only used if proxy is provided
         request_delay (int): Delay between requests in seconds
         tor_control_password (Optional[str]): Password for Tor control port. Required if change_identity is True

@@ -8,6 +8,7 @@ Contains implementations for various Google Trends APIs:
 - SerpApiPy (paid)
 """
 
+from .api_utils import make_time_range, change_tor_identity, standard_dict_to_df
 from .serpapi import SerpApi
 from .serpwow import SerpWow
 from .searchapi import SearchApi
@@ -59,9 +60,10 @@ def get_api_info(name: str):
     """Get metadata for a specific API"""
     return available_apis.get(name)
 
-# Make all API classes available
+# Make all API classes and utility functions available
 __all__ = ['SerpApi', 'SerpWow', 'SearchApi', 'TrendsPy', 'SerpApiPy', 'available_apis', 
-           'get_free_apis', 'get_paid_apis', 'get_api_info'] 
+           'get_free_apis', 'get_paid_apis', 'get_api_info',
+           'make_time_range', 'change_tor_identity', 'standard_dict_to_df']
 
 # Note: As far as I can tell, SerpApi and SearchApi always return the same data.
 # Note that trendspy is very easily rate-limited, enough so that it might not even be usable.

@@ -1,7 +1,8 @@
-from typing import Union, List, Optional, Dict, Any
+from typing import Union, List, Optional, Dict, Any, Callable
 from datetime import datetime
 import pandas as pd
 from utils import _print_if_verbose
+from .api_utils import standard_dict_to_df
 
 class API_Call:
     """
@@ -14,7 +15,7 @@ class API_Call:
         proxy: Optional[str] = None,
         change_identity: bool = True,
         request_delay: int = 4,
-        geo: str = "",
+        geo: str = "US",
         cat: Optional[int] = None,
         gprop: Optional[str] = None,
         language: str = "en",
@@ -22,7 +23,7 @@ class API_Call:
         no_cache: bool = False,
         region: Optional[str] = None,
         verbose: bool = False,
-        print_func: Optional[callable] = None,
+        print_func: Optional[Callable] = None,
         tor_control_password: Optional[str] = None,
         api_endpoint: Optional[str] = None,
         **kwargs
@@ -32,18 +33,18 @@ class API_Call:
         
         Args:
             api_key (Optional[str]): API key for the service. Required for some APIs, optional for others
-            proxy (Optional[str]): The proxy to use. If None, no proxy will be used. For Tor, use "127.0.0.1:9150"
+            proxy (Optional[str]): The proxy to use. If None, will use proxy from config.yaml if available
             change_identity (bool): Whether to change Tor identity between iterations. Only used if proxy is provided
             request_delay (int): Delay between requests in seconds
-            geo (str): Geographic location for the search (e.g. "US"). Defaults to empty string
+            geo (str): Geographic location for the search (e.g. "US"). Defaults to "US"
             cat (Optional[int]): Category for the search. Defaults to None
             gprop (Optional[str]): Google property to search. Defaults to None
-            language (str): Language for the search. Defaults to "en"
+            language (str): Language for the search. Defaults to "en-US"
             tz (int): Timezone offset in minutes. Defaults to 420
             no_cache (bool): Whether to disable caching. Defaults to False
             region (Optional[str]): Region for the search. Defaults to None
             verbose (bool): Whether to print debug information
-            print_func (Optional[callable]): Function to use for printing debug information. If None, uses _print_if_verbose
+            print_func (Optional[Callable]): Function to use for printing debug information. If None, uses _print_if_verbose
             tor_control_password (Optional[str]): Password for Tor control port. Required if change_identity is True
             api_endpoint (Optional[str]): The API endpoint URL. Defaults to None
             **kwargs: Additional keyword arguments specific to each API implementation
@@ -63,6 +64,9 @@ class API_Call:
         self.tor_control_password = tor_control_password
         self.api_endpoint = api_endpoint
         self.kwargs = kwargs
+        self._raw_data_history = []
+        self._data_history = []
+        self._dataframe_history = []
 
         # Create a closure that captures self.verbose
         def make_print_func(verbose: bool) -> callable:
@@ -99,5 +103,127 @@ class API_Call:
         Returns:
             API_Call: Returns self for method chaining
         """
-        self.data = self.raw_data
-        return self 
+        if not self._raw_data_history:
+            raise ValueError("No raw data available. Call search() first.")
+            
+        self._data_history.append(self._raw_data_history[-1])
+        return self
+
+    def make_dataframe(self) -> 'API_Call':
+        """
+        Convert the standardized data to a pandas DataFrame.
+        Uses standard_dict_to_df to create a DataFrame with a PeriodIndex.
+        
+        Returns:
+            API_Call: Returns self for method chaining
+        """
+        if not self._data_history:
+            raise ValueError("No standardized data available. Call standardize_data() first.")
+            
+        self._dataframe_history.append(standard_dict_to_df(self._data_history[-1]))
+        return self
+
+    @property
+    def raw_data(self) -> Any:
+        """
+        Get the raw data from the API response.
+        
+        Returns:
+            Any: The raw API response data
+            
+        Raises:
+            ValueError: If no raw data is available
+        """
+        if not self._raw_data_history:
+            raise ValueError("No raw data available. Call search() first.")
+        return self._raw_data_history[-1]
+
+    @raw_data.setter
+    def raw_data(self, value: Any) -> None:
+        """
+        Set the raw data and append it to the history.
+        
+        Args:
+            value (Any): The raw data to set
+        """
+        self._raw_data_history.append(value)
+
+    @property
+    def data(self) -> Any:
+        """
+        Get the standardized data.
+        
+        Returns:
+            Any: The standardized data
+            
+        Raises:
+            ValueError: If no standardized data is available
+        """
+        if not self._data_history:
+            raise ValueError("No standardized data available. Call standardize_data() first.")
+        return self._data_history[-1]
+
+    @data.setter
+    def data(self, value: Any) -> None:
+        """
+        Set the standardized data and append it to the history.
+        
+        Args:
+            value (Any): The standardized data to set
+        """
+        self._data_history.append(value)
+
+    @property
+    def dataframe(self) -> pd.DataFrame:
+        """
+        Get the pandas DataFrame.
+        
+        Returns:
+            pd.DataFrame: The pandas DataFrame
+            
+        Raises:
+            ValueError: If no DataFrame is available
+        """
+        if not self._dataframe_history:
+            raise ValueError("No DataFrame available. Call make_dataframe() first.")
+        return self._dataframe_history[-1]
+
+    @dataframe.setter
+    def dataframe(self, value: pd.DataFrame) -> None:
+        """
+        Set the DataFrame and append it to the history.
+        
+        Args:
+            value (pd.DataFrame): The DataFrame to set
+        """
+        self._dataframe_history.append(value)
+
+    @property
+    def raw_data_history(self) -> List[Any]:
+        """
+        Get the history of raw data.
+        
+        Returns:
+            List[Any]: List of all raw data entries
+        """
+        return self._raw_data_history
+
+    @property
+    def data_history(self) -> List[Any]:
+        """
+        Get the history of standardized data.
+        
+        Returns:
+            List[Any]: List of all standardized data entries
+        """
+        return self._data_history
+
+    @property
+    def dataframe_history(self) -> List[pd.DataFrame]:
+        """
+        Get the history of dataframes.
+        
+        Returns:
+            List[pd.DataFrame]: List of all dataframe entries
+        """
+        return self._dataframe_history 

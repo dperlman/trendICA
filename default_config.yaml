@@ -5,6 +5,8 @@ api_keys:
 
 tor:
   control_password: "controlpass" 
+  control_port: 9151
+  proxy_port: 9150
 
 api_modes:
   - name: "trendspy"

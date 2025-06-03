@@ -61,11 +61,11 @@ def main():
     #     "TrendsPy": TrendsPy(verbose=verbose, tor_control_password=tor_control_password, proxy="127.0.0.1:9150", change_identity=True),
     #     "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose)
     # }
-    # apis = {
-    #     "SerpApi": SerpApi(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose),
-    #     "SerpWow": SerpWow(api_key=config.get('api_keys', {}).get('serpwow'), verbose=verbose),
-    #     "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose)
-    # }
+    apis = {
+        "SerpApi": SerpApi(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose),
+        "SerpWow": SerpWow(api_key=config.get('api_keys', {}).get('serpwow'), verbose=verbose),
+        "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose)
+    }
     # apis = {
     #     "SerpApiPy": SerpApiPy(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose)
     # }
@@ -78,9 +78,9 @@ def main():
     # apis = {
     #     "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose)
     # }
-    apis = {
-        "TrendsPy": TrendsPy(verbose=verbose, tor_control_password=tor_control_password, proxy="127.0.0.1:9150", change_identity=True)
-    }
+    # apis = {
+    #     "TrendsPy": TrendsPy(verbose=verbose, tor_control_password=tor_control_password, proxy="127.0.0.1:9150", change_identity=True)
+    # }
     # Test each API
     for api_name, api_instance in apis.items():
         test_api(api_instance, api_name, verbose)
