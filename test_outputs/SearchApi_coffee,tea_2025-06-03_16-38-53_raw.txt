@@ -1,0 +1,661 @@
+{
+  "interest_over_time": {
+    "averages": [
+      {
+        "query": "coffee",
+        "value": 92
+      },
+      {
+        "query": "tea",
+        "value": 53
+      }
+    ],
+    "timeline_data": [
+      {
+        "date": "Dec 31, 2023\u2009\u2013\u2009Jan 6, 2024",
+        "timestamp": "1703980800",
+        "values": [
+          {
+            "extracted_value": 99,
+            "query": "coffee",
+            "value": "99"
+          },
+          {
+            "extracted_value": 61,
+            "query": "tea",
+            "value": "61"
+          }
+        ]
+      },
+      {
+        "date": "Jan 7\u2009\u2013\u200913, 2024",
+        "timestamp": "1704585600",
+        "values": [
+          {
+            "extracted_value": 92,
+            "query": "coffee",
+            "value": "92"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Jan 14\u2009\u2013\u200920, 2024",
+        "timestamp": "1705190400",
+        "values": [
+          {
+            "extracted_value": 91,
+            "query": "coffee",
+            "value": "91"
+          },
+          {
+            "extracted_value": 57,
+            "query": "tea",
+            "value": "57"
+          }
+        ]
+      },
+      {
+        "date": "Jan 21\u2009\u2013\u200927, 2024",
+        "timestamp": "1705795200",
+        "values": [
+          {
+            "extracted_value": 93,
+            "query": "coffee",
+            "value": "93"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Jan 28\u2009\u2013\u2009Feb 3, 2024",
+        "timestamp": "1706400000",
+        "values": [
+          {
+            "extracted_value": 91,
+            "query": "coffee",
+            "value": "91"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Feb 4\u2009\u2013\u200910, 2024",
+        "timestamp": "1707004800",
+        "values": [
+          {
+            "extracted_value": 90,
+            "query": "coffee",
+            "value": "90"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Feb 11\u2009\u2013\u200917, 2024",
+        "timestamp": "1707609600",
+        "values": [
+          {
+            "extracted_value": 89,
+            "query": "coffee",
+            "value": "89"
+          },
+          {
+            "extracted_value": 51,
+            "query": "tea",
+            "value": "51"
+          }
+        ]
+      },
+      {
+        "date": "Feb 18\u2009\u2013\u200924, 2024",
+        "timestamp": "1708214400",
+        "values": [
+          {
+            "extracted_value": 93,
+            "query": "coffee",
+            "value": "93"
+          },
+          {
+            "extracted_value": 57,
+            "query": "tea",
+            "value": "57"
+          }
+        ]
+      },
+      {
+        "date": "Feb 25\u2009\u2013\u2009Mar 2, 2024",
+        "timestamp": "1708819200",
+        "values": [
+          {
+            "extracted_value": 91,
+            "query": "coffee",
+            "value": "91"
+          },
+          {
+            "extracted_value": 56,
+            "query": "tea",
+            "value": "56"
+          }
+        ]
+      },
+      {
+        "date": "Mar 3\u2009\u2013\u20099, 2024",
+        "timestamp": "1709424000",
+        "values": [
+          {
+            "extracted_value": 90,
+            "query": "coffee",
+            "value": "90"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Mar 10\u2009\u2013\u200916, 2024",
+        "timestamp": "1710028800",
+        "values": [
+          {
+            "extracted_value": 93,
+            "query": "coffee",
+            "value": "93"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Mar 17\u2009\u2013\u200923, 2024",
+        "timestamp": "1710633600",
+        "values": [
+          {
+            "extracted_value": 88,
+            "query": "coffee",
+            "value": "88"
+          },
+          {
+            "extracted_value": 53,
+            "query": "tea",
+            "value": "53"
+          }
+        ]
+      },
+      {
+        "date": "Mar 24\u2009\u2013\u200930, 2024",
+        "timestamp": "1711238400",
+        "values": [
+          {
+            "extracted_value": 90,
+            "query": "coffee",
+            "value": "90"
+          },
+          {
+            "extracted_value": 52,
+            "query": "tea",
+            "value": "52"
+          }
+        ]
+      },
+      {
+        "date": "Mar 31\u2009\u2013\u2009Apr 6, 2024",
+        "timestamp": "1711843200",
+        "values": [
+          {
+            "extracted_value": 88,
+            "query": "coffee",
+            "value": "88"
+          },
+          {
+            "extracted_value": 53,
+            "query": "tea",
+            "value": "53"
+          }
+        ]
+      },
+      {
+        "date": "Apr 7\u2009\u2013\u200913, 2024",
+        "timestamp": "1712448000",
+        "values": [
+          {
+            "extracted_value": 87,
+            "query": "coffee",
+            "value": "87"
+          },
+          {
+            "extracted_value": 54,
+            "query": "tea",
+            "value": "54"
+          }
+        ]
+      },
+      {
+        "date": "Apr 14\u2009\u2013\u200920, 2024",
+        "timestamp": "1713052800",
+        "values": [
+          {
+            "extracted_value": 89,
+            "query": "coffee",
+            "value": "89"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Apr 21\u2009\u2013\u200927, 2024",
+        "timestamp": "1713657600",
+        "values": [
+          {
+            "extracted_value": 93,
+            "query": "coffee",
+            "value": "93"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Apr 28\u2009\u2013\u2009May 4, 2024",
+        "timestamp": "1714262400",
+        "values": [
+          {
+            "extracted_value": 85,
+            "query": "coffee",
+            "value": "85"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "May 5\u2009\u2013\u200911, 2024",
+        "timestamp": "1714867200",
+        "values": [
+          {
+            "extracted_value": 94,
+            "query": "coffee",
+            "value": "94"
+          },
+          {
+            "extracted_value": 54,
+            "query": "tea",
+            "value": "54"
+          }
+        ]
+      },
+      {
+        "date": "May 12\u2009\u2013\u200918, 2024",
+        "timestamp": "1715472000",
+        "values": [
+          {
+            "extracted_value": 91,
+            "query": "coffee",
+            "value": "91"
+          },
+          {
+            "extracted_value": 50,
+            "query": "tea",
+            "value": "50"
+          }
+        ]
+      },
+      {
+        "date": "May 19\u2009\u2013\u200925, 2024",
+        "timestamp": "1716076800",
+        "values": [
+          {
+            "extracted_value": 91,
+            "query": "coffee",
+            "value": "91"
+          },
+          {
+            "extracted_value": 53,
+            "query": "tea",
+            "value": "53"
+          }
+        ]
+      },
+      {
+        "date": "May 26\u2009\u2013\u2009Jun 1, 2024",
+        "timestamp": "1716681600",
+        "values": [
+          {
+            "extracted_value": 96,
+            "query": "coffee",
+            "value": "96"
+          },
+          {
+            "extracted_value": 54,
+            "query": "tea",
+            "value": "54"
+          }
+        ]
+      },
+      {
+        "date": "Jun 2\u2009\u2013\u20098, 2024",
+        "timestamp": "1717286400",
+        "values": [
+          {
+            "extracted_value": 94,
+            "query": "coffee",
+            "value": "94"
+          },
+          {
+            "extracted_value": 54,
+            "query": "tea",
+            "value": "54"
+          }
+        ]
+      },
+      {
+        "date": "Jun 9\u2009\u2013\u200915, 2024",
+        "timestamp": "1717891200",
+        "values": [
+          {
+            "extracted_value": 92,
+            "query": "coffee",
+            "value": "92"
+          },
+          {
+            "extracted_value": 54,
+            "query": "tea",
+            "value": "54"
+          }
+        ]
+      },
+      {
+        "date": "Jun 16\u2009\u2013\u200922, 2024",
+        "timestamp": "1718496000",
+        "values": [
+          {
+            "extracted_value": 96,
+            "query": "coffee",
+            "value": "96"
+          },
+          {
+            "extracted_value": 55,
+            "query": "tea",
+            "value": "55"
+          }
+        ]
+      },
+      {
+        "date": "Jun 23\u2009\u2013\u200929, 2024",
+        "timestamp": "1719100800",
+        "values": [
+          {
+            "extracted_value": 93,
+            "query": "coffee",
+            "value": "93"
+          },
+          {
+            "extracted_value": 53,
+            "query": "tea",
+            "value": "53"
+          }
+        ]
+      },
+      {
+        "date": "Jun 30\u2009\u2013\u2009Jul 6, 2024",
+        "timestamp": "1719705600",
+        "values": [
+          {
+            "extracted_value": 100,
+            "query": "coffee",
+            "value": "100"
+          },
+          {
+            "extracted_value": 54,
+            "query": "tea",
+            "value": "54"
+          }
+        ]
+      },
+      {
+        "date": "Jul 7\u2009\u2013\u200913, 2024",
+        "timestamp": "1720310400",
+        "values": [
+          {
+            "extracted_value": 91,
+            "query": "coffee",
+            "value": "91"
+          },
+          {
+            "extracted_value": 51,
+            "query": "tea",
+            "value": "51"
+          }
+        ]
+      },
+      {
+        "date": "Jul 14\u2009\u2013\u200920, 2024",
+        "timestamp": "1720915200",
+        "values": [
+          {
+            "extracted_value": 93,
+            "query": "coffee",
+            "value": "93"
+          },
+          {
+            "extracted_value": 50,
+            "query": "tea",
+            "value": "50"
+          }
+        ]
+      },
+      {
+        "date": "Jul 21\u2009\u2013\u200927, 2024",
+        "timestamp": "1721520000",
+        "values": [
+          {
+            "extracted_value": 94,
+            "query": "coffee",
+            "value": "94"
+          },
+          {
+            "extracted_value": 51,
+            "query": "tea",
+            "value": "51"
+          }
+        ]
+      },
+      {
+        "date": "Jul 28\u2009\u2013\u2009Aug 3, 2024",
+        "timestamp": "1722124800",
+        "values": [
+          {
+            "extracted_value": 89,
+            "query": "coffee",
+            "value": "89"
+          },
+          {
+            "extracted_value": 50,
+            "query": "tea",
+            "value": "50"
+          }
+        ]
+      },
+      {
+        "date": "Aug 4\u2009\u2013\u200910, 2024",
+        "timestamp": "1722729600",
+        "values": [
+          {
+            "extracted_value": 85,
+            "query": "coffee",
+            "value": "85"
+          },
+          {
+            "extracted_value": 49,
+            "query": "tea",
+            "value": "49"
+          }
+        ]
+      },
+      {
+        "date": "Aug 11\u2009\u2013\u200917, 2024",
+        "timestamp": "1723334400",
+        "values": [
+          {
+            "extracted_value": 95,
+            "query": "coffee",
+            "value": "95"
+          },
+          {
+            "extracted_value": 53,
+            "query": "tea",
+            "value": "53"
+          }
+        ]
+      },
+      {
+        "date": "Aug 18\u2009\u2013\u200924, 2024",
+        "timestamp": "1723939200",
+        "values": [
+          {
+            "extracted_value": 95,
+            "query": "coffee",
+            "value": "95"
+          },
+          {
+            "extracted_value": 52,
+            "query": "tea",
+            "value": "52"
+          }
+        ]
+      },
+      {
+        "date": "Aug 25\u2009\u2013\u200931, 2024",
+        "timestamp": "1724544000",
+        "values": [
+          {
+            "extracted_value": 92,
+            "query": "coffee",
+            "value": "92"
+          },
+          {
+            "extracted_value": 51,
+            "query": "tea",
+            "value": "51"
+          }
+        ]
+      },
+      {
+        "date": "Sep 1\u2009\u2013\u20097, 2024",
+        "timestamp": "1725148800",
+        "values": [
+          {
+            "extracted_value": 98,
+            "query": "coffee",
+            "value": "98"
+          },
+          {
+            "extracted_value": 50,
+            "query": "tea",
+            "value": "50"
+          }
+        ]
+      },
+      {
+        "date": "Sep 8\u2009\u2013\u200914, 2024",
+        "timestamp": "1725753600",
+        "values": [
+          {
+            "extracted_value": 91,
+            "query": "coffee",
+            "value": "91"
+          },
+          {
+            "extracted_value": 49,
+            "query": "tea",
+            "value": "49"
+          }
+        ]
+      },
+      {
+        "date": "Sep 15\u2009\u2013\u200921, 2024",
+        "timestamp": "1726358400",
+        "values": [
+          {
+            "extracted_value": 96,
+            "query": "coffee",
+            "value": "96"
+          },
+          {
+            "extracted_value": 52,
+            "query": "tea",
+            "value": "52"
+          }
+        ]
+      },
+      {
+        "date": "Sep 22\u2009\u2013\u200928, 2024",
+        "timestamp": "1726963200",
+        "values": [
+          {
+            "extracted_value": 91,
+            "query": "coffee",
+            "value": "91"
+          },
+          {
+            "extracted_value": 51,
+            "query": "tea",
+            "value": "51"
+          }
+        ]
+      }
+    ]
+  },
+  "search_metadata": {
+    "created_at": "2025-06-03T23:38:53Z",
+    "html_url": "https://www.searchapi.io/api/v1/searches/search_VW19X7MebbAtAYwxpe68NbDz.html",
+    "id": "search_VW19X7MebbAtAYwxpe68NbDz",
+    "json_url": "https://www.searchapi.io/api/v1/searches/search_VW19X7MebbAtAYwxpe68NbDz",
+    "parsing_time_taken": 0.0,
+    "request_time_taken": 3.5,
+    "request_url": "https://trends.google.com/trends/explore?q=coffee%2Ctea&geo=US&tz=420&date=2024-01-01 2024-09-27&cat=0",
+    "status": "Success",
+    "total_time_taken": 3.5
+  },
+  "search_parameters": {
+    "cat": "0",
+    "data_type": "TIMESERIES",
+    "engine": "google_trends",
+    "geo": "US",
+    "q": "coffee,tea",
+    "region": "CITY",
+    "time": "2024-01-01 2024-09-27",
+    "tz": "420"
+  }
+}

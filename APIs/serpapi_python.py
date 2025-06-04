@@ -46,6 +46,18 @@ class SerpApiPy(API_Call):
         Returns:
             SerpApiPy: Returns self for method chaining
         """
+        # Store search specification
+        self.search_spec = {
+            'terms': search_term,
+            'start_date': start_date,
+            'end_date': end_date,
+            'geo': self.geo,
+            'language': self.language,
+            'cat': self.cat,
+            'gprop': self.gprop,
+            'region': self.region
+        }
+        
         self.print_func(f"Sending SerpAPI search request:")
         self.print_func(f"  Search term: {search_term}")
         self.print_func(f"  Start date: {start_date if start_date else 'default'}")
@@ -69,9 +81,10 @@ class SerpApiPy(API_Call):
             if hasattr(self, 'gprop') and self.gprop is not None:
                 params['gprop'] = self.gprop
             
+            # Parse time range if provided
             time_range = make_time_range(start_date, end_date)
-            params['date'] = time_range.ymd
-            self.print_func(f"  Time range: {time_range.ymd}")
+            params['date'] = time_range['ymd']
+            self.print_func(f"  Time range: {time_range['ymd']}")
             
             # Make the API call
             search = self.search_client(params)
@@ -146,5 +159,5 @@ def search_serpapi(
     Returns:
         Union[pd.DataFrame, Dict[str, Any]]: Standardized search results
     """
-    serp = SerpApi(**locals())
+    serp = SerpApiPy(**locals())
     return serp.search(search_term, start_date, end_date).standardize_data().data 

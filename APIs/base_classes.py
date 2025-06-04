@@ -64,6 +64,7 @@ class API_Call:
         self.tor_control_password = tor_control_password
         self.api_endpoint = api_endpoint
         self.kwargs = kwargs
+        self._search_history = []
         self._raw_data_history = []
         self._data_history = []
         self._dataframe_history = []
@@ -226,4 +227,53 @@ class API_Call:
         Returns:
             List[pd.DataFrame]: List of all dataframe entries
         """
-        return self._dataframe_history 
+        return self._dataframe_history
+
+    @property
+    def search_history(self) -> List[Any]:
+        """
+        Get the search history.
+        
+        Returns:
+            List[Any]: List of search terms used in previous searches
+        """
+        return self._search_history
+
+    @search_history.setter
+    def search_history(self, value: Any) -> None:
+        """
+        Add a search term to the search history.
+        
+        Args:
+            value (Any): Search term to add to history
+        """
+        self._search_history.append(value)
+
+    @property
+    def search_spec(self) -> Dict[str, Any]:
+        """
+        Get the current search specification.
+        
+        Returns:
+            Dict[str, Any]: The current search specification including terms, dates, etc.
+            
+        Raises:
+            ValueError: If no search specification is available
+        """
+        if not self._search_history:
+            raise ValueError("No search specification available. Call search() first.")
+        return self._search_history[-1]
+
+    @search_spec.setter
+    def search_spec(self, spec: Dict[str, Any]) -> None:
+        """
+        Set the current search specification and append it to the history.
+        
+        Args:
+            spec (Dict[str, Any]): Dictionary containing search parameters
+        """
+        # If terms is a string, split it on commas
+        if isinstance(spec.get('terms'), str):
+            spec['terms'] = [term.strip() for term in spec['terms'].split(',')]
+            
+        self._search_history.append(spec) 

@@ -69,9 +69,10 @@ class SerpApiPy(API_Call):
             if hasattr(self, 'gprop') and self.gprop is not None:
                 params['gprop'] = self.gprop
             
+            # Parse time range if provided
             time_range = make_time_range(start_date, end_date)
-            params['date'] = time_range.ymd
-            self.print_func(f"  Time range: {time_range.ymd}")
+            params['date'] = time_range['ymd']
+            self.print_func(f"  Time range: {time_range['ymd']}")
             
             # Make the API call
             search = self.search_client(params)

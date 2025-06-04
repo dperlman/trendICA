@@ -69,7 +69,7 @@ class TrendsPy(API_Call):
         end_date: Optional[Union[str, datetime]] = None
     ) -> 'TrendsPy':
         """
-        Search Google Trends using the trendspy library.
+        Search Google Trends using the TrendsPy library.
         
         Args:
             search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
@@ -79,7 +79,19 @@ class TrendsPy(API_Call):
         Returns:
             TrendsPy: Returns self for method chaining
         """
-        self.print_func(f"Sending trendspy search request:")
+        # Store search specification
+        self.search_spec = {
+            'terms': search_term,
+            'start_date': start_date,
+            'end_date': end_date,
+            'geo': self.geo,
+            'language': self.language,
+            'cat': self.cat,
+            'gprop': self.gprop,
+            'region': self.region
+        }
+        
+        self.print_func(f"Sending TrendsPy search request:")
         self.print_func(f"  Search term: {search_term}")
         self.print_func(f"  Start date: {start_date if start_date else 'default'}")
         self.print_func(f"  End date: {end_date if end_date else 'default'}")
@@ -93,10 +105,11 @@ class TrendsPy(API_Call):
                 'cat': self.cat if self.cat is not None else 0,  # trendspy expects 0 as default
                 'gprop': self.gprop if self.gprop is not None else ''  # trendspy expects empty string as default
             }
+            # Parse time range if provided
             if start_date or end_date:
                 time_range = make_time_range(start_date, end_date)
-                params['timeframe'] = time_range.ymd
-                self.print_func(f"  Time range: {time_range.ymd}")
+                params['timeframe'] = time_range['ymd']
+                self.print_func(f"  Time range: {time_range['ymd']}")
             else:
                 self.print_func("  Time range: default")
             

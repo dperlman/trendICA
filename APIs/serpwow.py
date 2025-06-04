@@ -41,6 +41,18 @@ class SerpWow(API_Call):
         Returns:
             SerpWow: Returns self for method chaining
         """
+        # Store search specification
+        self.search_spec = {
+            'terms': search_term,
+            'start_date': start_date,
+            'end_date': end_date,
+            'geo': self.geo,
+            'language': self.language,
+            'cat': self.cat,
+            'gprop': self.gprop,
+            'region': self.region
+        }
+        
         self.print_func(f"Sending SerpWow search request:")
         self.print_func(f"  Search term: {search_term}")
         self.print_func(f"  Start date: {start_date if start_date else 'default'}")
@@ -49,8 +61,8 @@ class SerpWow(API_Call):
         try:
             # Parse time range if provided
             time_range = make_time_range(start_date, end_date)
-            time_period_min = time_range.mdy.split()[0]
-            time_period_max = time_range.mdy.split()[1]
+            time_period_min = time_range['mdy'].split()[0]
+            time_period_max = time_range['mdy'].split()[1]
             
             # Set up the request parameters
             params = {

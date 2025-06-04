@@ -8,6 +8,7 @@ import rjsmin
 import html
 from bs4 import BeautifulSoup
 from .base_classes import API_Call
+import pandas as pd
 
 # Constants
 WAIT_TIME = 10
@@ -23,7 +24,7 @@ CONFIRM_CONFIGS = {
         ]
     },
     'google_trends': {
-        'url': 'https://trends.google.com/trends/explore?date={date_range}&geo=US&q={query}&hl=en',
+        'url': 'https://trends.google.com/trends/explore?date={date_range}&geo={geo}&q={query}&hl=en',
         'terms': [
             {'term': 'Interest over time', 'queryselector': 'div.fe-line-chart-header-title'},
             {'term': 'Trending Now', 'queryselector': 'a.tab-title'},
@@ -62,6 +63,15 @@ class ApplescriptSafari(API_Call):
         Returns:
             ApplescriptSafari: Returns self for method chaining
         """
+        # Store search specification
+        self.search_spec = {
+            'terms': search_term,
+            'start_date': start_date,
+            'end_date': end_date,
+            'geo': self.geo,
+            'language': self.language
+        }
+        
         self.print_func(f"Sending ApplescriptSafari search request:")
         self.print_func(f"  Search term: {search_term}")
         self.print_func(f"  Start date: {start_date if start_date else 'default'}")
@@ -95,7 +105,7 @@ class ApplescriptSafari(API_Call):
                 self.print_func("Using default date range: all")
             
             # Construct the URL
-            formatted_url = url_template.format(date_range=date_range, query=query)
+            formatted_url = url_template.format(date_range=date_range, query=query, geo=self.geo)
             self.print_func(f"\nOpening URL: {formatted_url}")
             
             # Open URL in Safari
@@ -115,6 +125,84 @@ class ApplescriptSafari(API_Call):
         except Exception as e:
             self.print_func(f"  Search failed: {str(e)}")
             raise
+
+    def standardize_data(self) -> 'ApplescriptSafari':
+        """
+        Standardize the raw HTML data into a common format.
+        Parses the HTML table into a list of dictionaries with date and values.
+        
+        Returns:
+            ApplescriptSafari: Returns self for method chaining
+        """
+        if not self._raw_data_history:
+            raise ValueError("No raw data available. Call search() first.")
+            
+        # Parse the HTML using BeautifulSoup
+        soup = BeautifulSoup(self._raw_data_history[-1], 'html.parser')
+        
+        # Find the table
+        table = soup.find('table')
+        if not table:
+            raise ValueError("No table found in HTML data")
+            
+        # Get headers (column names)
+        headers = [th.text.strip() for th in table.find_all('th')]
+        if not headers:
+            raise ValueError("No headers found in table")
+            
+        # The first column should be 'x' (dates)
+        if headers[0] != 'x':
+            raise ValueError("First column is not 'x' (dates)")
+            
+        # Get all rows
+        rows = table.find_all('tr')[1:]  # Skip header row
+        
+        # Get search terms from search_spec
+        search_terms = self.search_spec['terms']
+        if not isinstance(search_terms, list):
+            search_terms = [search_terms]
+            
+        # Transform the data into the standardized format
+        standardized_data = []
+        for row in rows:
+            cells = row.find_all('td')
+            if len(cells) != len(headers):
+                continue  # Skip malformed rows
+                
+            # Parse the date
+            date_str = cells[0].text.strip()
+            try:
+                # Remove any special characters and parse the date
+                date_str = date_str.replace('\u202a', '').replace('\u202c', '')  # Remove LTR/RTL marks
+                date = datetime.strptime(date_str, '%b %d, %Y')
+            except ValueError:
+                continue  # Skip rows with invalid dates
+                
+            # Get values for each column (except the date column)
+            values = []
+            for i, cell in enumerate(cells[1:], 1):
+                try:
+                    value = int(cell.text.strip())
+                    # Use the search term from search_spec
+                    search_term = search_terms[i-1] if i-1 < len(search_terms) else f"term_{i}"
+                    values.append({
+                        'value': value,
+                        'query': search_term
+                    })
+                except ValueError:
+                    continue  # Skip invalid values
+                    
+            if values:  # Only add entries that have valid values
+                standardized_data.append({
+                    'date': date.strftime('%Y-%m-%d'),
+                    'values': values
+                })
+        
+        if not standardized_data:
+            raise ValueError("No valid data found in table")
+            
+        self._data_history.append(standardized_data)
+        return self
 
 def dummy_print(*args, **kwargs) -> None:
     """A dummy print function that does nothing."""
@@ -724,7 +812,7 @@ def trends_applescript_safari(
     
     # Construct the URL using format
     try:
-        formatted_url = url_template.format(date_range=date_range, query=query)
+        formatted_url = url_template.format(date_range=date_range, query=query, geo='us')
         print_func(f"\nTesting URL: {formatted_url}")
     except KeyError as e:
         print_func(f"Error formatting URL: {str(e)}")
@@ -752,6 +840,26 @@ def trends_applescript_safari(
         html = result_parser(print_func)
         print_func(html)
 
+def search_applescript_safari(
+    search_term: Union[str, List[str]],
+    start_date: Optional[Union[str, datetime]] = None,
+    end_date: Optional[Union[str, datetime]] = None,
+    **kwargs
+) -> Union[pd.DataFrame, Dict[str, Any]]:
+    """
+    Search Google Trends using Safari and AppleScript.
+    
+    Args:
+        search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
+        start_date (Optional[Union[str, datetime]]): Start date for the search
+        end_date (Optional[Union[str, datetime]]): End date for the search
+        **kwargs: Additional keyword arguments passed to API_Call
+        
+    Returns:
+        Union[pd.DataFrame, Dict[str, Any]]: Standardized search results
+    """
+    safari = ApplescriptSafari(**locals())
+    return safari.search(search_term, start_date, end_date).standardize_data().data
 
 if __name__ == "__main__":
     # Define test configurations

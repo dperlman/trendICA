@@ -41,6 +41,18 @@ class SearchApi(API_Call):
         Returns:
             SearchApi: Returns self for method chaining
         """
+        # Store search specification
+        self.search_spec = {
+            'terms': search_term,
+            'start_date': start_date,
+            'end_date': end_date,
+            'geo': self.geo,
+            'language': self.language,
+            'cat': self.cat,
+            'gprop': self.gprop,
+            'region': self.region
+        }
+        
         self.print_func(f"Sending SearchApi search request:")
         self.print_func(f"  Search term: {search_term}")
         self.print_func(f"  Start date: {start_date if start_date else 'default'}")
@@ -66,10 +78,10 @@ class SearchApi(API_Call):
             if hasattr(self, 'gprop') and self.gprop is not None:
                 params['gprop'] = self.gprop
             
-            # Handle time range
+            # Parse time range if provided
             time_range = make_time_range(start_date, end_date)
-            params['time'] = time_range.ymd
-            self.print_func(f"  Time range: {time_range.ymd}")
+            params['time'] = time_range['ymd']
+            self.print_func(f"  Time range: {time_range['ymd']}")
             
             # Make the HTTP GET request
             response = requests.get(self.api_endpoint, params=params)

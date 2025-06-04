@@ -32,7 +32,7 @@ class SerpApi(API_Call):
         end_date: Optional[Union[str, datetime]] = None
     ) -> 'SerpApi':
         """
-        Search Google Trends using direct HTTP requests to SerpAPI.
+        Search Google Trends using the SerpApi.
         
         Args:
             search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
@@ -42,13 +42,25 @@ class SerpApi(API_Call):
         Returns:
             SerpApi: Returns self for method chaining
         """
-        self.print_func(f"Sending SerpAPI search request:")
+        # Store search specification
+        self.search_spec = {
+            'terms': search_term,
+            'start_date': start_date,
+            'end_date': end_date,
+            'geo': self.geo,
+            'language': self.language,
+            'cat': self.cat,
+            'gprop': self.gprop,
+            'region': self.region
+        }
+        
+        self.print_func(f"Sending SerpApi search request:")
         self.print_func(f"  Search term: {search_term}")
         self.print_func(f"  Start date: {start_date if start_date else 'default'}")
         self.print_func(f"  End date: {end_date if end_date else 'default'}")
         
         try:
-            # Prepare the parameters for the search
+            # Set up the request parameters
             params = {
                 'api_key': self.api_key,
                 'engine': 'google_trends',
@@ -65,9 +77,10 @@ class SerpApi(API_Call):
             if hasattr(self, 'gprop') and self.gprop is not None:
                 params['gprop'] = self.gprop
             
+            # Parse time range if provided
             time_range = make_time_range(start_date, end_date)
-            params['date'] = time_range.ymd
-            self.print_func(f"  Time range: {time_range.ymd}")
+            params['date'] = time_range['ymd']
+            self.print_func(f"  Time range: {time_range['ymd']}")
             
             # Make the API call using requests
             response = requests.get(self.base_url, params=params)

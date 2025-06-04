@@ -6,6 +6,7 @@ Contains implementations for various Google Trends APIs:
 - SearchAPI (paid)
 - TrendsPy (free)
 - SerpApiPy (paid)
+- ApplescriptSafari (free)
 """
 
 from .api_utils import make_time_range, change_tor_identity, standard_dict_to_df
@@ -14,6 +15,7 @@ from .serpwow import SerpWow
 from .searchapi import SearchApi
 from .trendspy import TrendsPy
 from .serpapi_python import SerpApiPy as SerpApiPy
+from .applescript_safari import ApplescriptSafari
 
 # Define API metadata
 available_apis = {
@@ -41,6 +43,11 @@ available_apis = {
         'class': SerpApiPy,
         'type': 'paid',
         'description': 'Uses SerpAPI service with the official Python library'
+    },
+    'applescript_safari': {
+        'class': ApplescriptSafari,
+        'type': 'free',
+        'description': 'Uses Safari and AppleScript to access Google Trends'
     }
 }
 

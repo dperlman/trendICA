@@ -1,4 +1,4 @@
-from APIs import SerpApi, SerpWow, TrendsPy, SearchApi, SerpApiPy
+from APIs import SerpApi, SerpWow, TrendsPy, SearchApi, SerpApiPy, ApplescriptSafari
 from datetime import datetime
 from utils import load_config, _print_if_verbose
 import json
@@ -64,7 +64,8 @@ def main():
     apis = {
         "SerpApi": SerpApi(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose),
         "SerpWow": SerpWow(api_key=config.get('api_keys', {}).get('serpwow'), verbose=verbose),
-        "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose)
+        "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose),
+        "ApplescriptSafari": ApplescriptSafari(verbose=verbose)
     }
     # apis = {
     #     "SerpApiPy": SerpApiPy(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose)
