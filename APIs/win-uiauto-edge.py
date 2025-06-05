@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Union, List, Optional, Dict, Any
 import pandas as pd
 import unicodedata
-from .api_utils import make_time_range
+from .api_utils import make_time_range, standardize_date_str
 from .base_classes import API_Call
 
 class SerpApiPy(API_Call):
@@ -21,7 +21,7 @@ class SerpApiPy(API_Call):
             **kwargs: Additional keyword arguments passed to API_Call
         """
         super().__init__(api_key=api_key, **kwargs)
-
+        raise NotImplementedError("Not implemented yet")
         # Initialize serpapi instance
         try:
             from serpapi import GoogleSearch
@@ -114,7 +114,7 @@ class SerpApiPy(API_Call):
         self.data = []
         for entry in timeline:
             standardized_entry = {
-                'date': unicodedata.normalize('NFKC', entry['date']),
+                'date': standardize_date_str(entry['date'])['formatted_range']['ymd'],
                 'values': [
                     {
                         'value': item['extracted_value'],
@@ -147,5 +147,5 @@ def search_serpapi(
     Returns:
         Union[pd.DataFrame, Dict[str, Any]]: Standardized search results
     """
-    serp = SerpApi(**locals())
+    serp = SerpApiPy(**locals())
     return serp.search(search_term, start_date, end_date).standardize_data().data 

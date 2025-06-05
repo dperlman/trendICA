@@ -2,10 +2,9 @@ import time
 import requests
 from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
-from .api_utils import make_time_range
+from .api_utils import make_time_range, standardize_date_str
 from .base_classes import API_Call
 import pandas as pd
-import unicodedata
 
 class SerpWow(API_Call):
     def __init__(
@@ -124,7 +123,7 @@ class SerpWow(API_Call):
         self.data = []
         for entry in timeline:
             standardized_entry = {
-                'date': unicodedata.normalize('NFKC', entry['date_formatted']),
+                'date': standardize_date_str(entry['date_formatted'], verbose=False)['formatted_range']['ymd'],
                 'values': [
                     {
                         'value': item['value'],

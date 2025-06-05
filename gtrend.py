@@ -17,7 +17,7 @@ from utils import (
 )
 
 # Import API_Call type for type hints
-from APIs import API_Call
+from APIs.base_classes import API_Call
 
 class Trends:
     def __init__(
@@ -416,15 +416,10 @@ class Trends:
         
         # If total days is less than or equal to 270, use a single search
         if total_days <= 270:
-            if self.dry_run:
-                # Create a date range for the entire period
-                date_range = pd.date_range(start=start_dt, end=end_dt, freq='D')
-                result = pd.DataFrame(0, index=date_range, columns=[search_term.replace(" ", "_")])
-            else:
-                result = self._search_by_day_270(
-                    search_term=search_term,
-                    start_date=start_dt
-                )
+            result = self._search_by_day_270(
+                search_term=search_term,
+                start_date=start_dt
+            )
             return result
         
         # For ranges longer than 270 days, use staggered searches
@@ -432,7 +427,7 @@ class Trends:
             search_term=search_term,
             start_dt=start_dt,
             end_dt=end_dt,
-            granularity=granularity,
+            granularity="D",
             stagger=stagger,
             scale=scale,
             method=method
@@ -477,11 +472,10 @@ class Trends:
                 result_df = result_df.round(round)
 
             # Print search log summary
-            prefix = "[DRY RUN] " if self.dry_run else ""
             message = (
                 f"\n{prefix}Search Summary:\n"
                 f"Total searches performed: {len(self.main_log)}\n"
-                f"API used: {self._select_api()}\n"
+                f"API used: {self.last_api_used}\n"
                 "\nSearch details:"
             )
             for i, log in enumerate(self.main_log, 1):
@@ -528,14 +522,14 @@ class Trends:
             return result
         
         # Perform the search using the chosen API
-        api_instance = self._search_with_chosen_api(
+        self.api_instance = self._search_with_chosen_api(
             search_term=search_term,
             start_date=start_dt,
             end_date=end_dt
         )
         
         # Get the raw data from the API instance
-        results = api_instance.standardize_data().make_dataframe().dataframe
+        results = self.api_instance.standardize_data().make_dataframe().dataframe
         
         # If results is a DataFrame, validate its granularity
         if isinstance(results, pd.DataFrame):
@@ -609,14 +603,14 @@ class Trends:
         end_date = end_dt.strftime("%Y-%m-%dT%H")
         
         # Perform the search using the chosen API
-        api_instance = self._search_with_chosen_api(
+        self.api_instance = self._search_with_chosen_api(
             search_term=search_term,
             start_date=start_dt,
             end_date=end_dt
         )
         
         # Get the raw data from the API instance
-        results = api_instance.standardize_data().make_dataframe().dataframe
+        results = self.api_instance.standardize_data().make_dataframe().dataframe
         
         # Apply final scaling if requested
         if final_scale and not self.dry_run:
@@ -784,10 +778,9 @@ class Trends:
             if granularity == "D":
                 # Calculate end date based on search_unit_length
                 end_date = search_info['start_date'] + timedelta(days=search_unit_length)
-                result = self._search_by_day(
+                result = self._search_by_day_270(
                     search_term=search_term,
-                    start_date=search_info['start_date'],
-                    end_date=end_date
+                    start_date=search_info['start_date'] # search_by_day_270 takes care of the end date
                 )
             elif granularity == "h":
                 result = self._search_by_hour(
@@ -810,17 +803,17 @@ class Trends:
                 )
             stagger_groups[search_info['group_idx']].append(result)
         
-        if self.dry_run:
-            self._print(f"[DRY RUN] Would perform {search_count} searches:")
-            for s, group in enumerate(stagger_groups):
-                for i, df in enumerate(group):
-                    if granularity == "h":
-                        date_format = '%Y-%m-%d %H:%M'
-                    else:
-                        date_format = '%Y-%m-%d'
-                    start_date = df.index[0].strftime(date_format)
-                    end_date = df.index[-1].strftime(date_format)
-                    self._print(f"Group {s+1}, Interval {i+1}: {start_date} to {end_date}")
+        # if self.dry_run:
+        #     self._print(f"[DRY RUN] Would perform {search_count} searches:")
+        #     for s, group in enumerate(stagger_groups):
+        #         for i, df in enumerate(group):
+        #             if granularity == "h":
+        #                 date_format = '%Y-%m-%d %H:%M'
+        #             else:
+        #                 date_format = '%Y-%m-%d'
+        #             start_date = df.index[0].strftime(date_format)
+        #             end_date = df.index[-1].strftime(date_format)
+        #             self._print(f"Group {s+1}, Interval {i+1}: {start_date} to {end_date}")
         
         if stagger > 0 and scale and not self.dry_run:
             stagger_groups = self._scale_stagger_groups(stagger_groups, method)
@@ -1089,6 +1082,9 @@ class Trends:
                 )
                 # Store the instance for potential reuse
                 self.api_instances[api_name] = api_instance
+                # Store the current api instance so downstream functions know which one it was
+                self.api_instance = api_instance
+
             
             # Try to perform the search
             try:
@@ -1097,6 +1093,8 @@ class Trends:
                     start_date=start_date,
                     end_date=end_date
                 )
+                self.last_api_used = api_name
+                self.last_api_instance = api_instance
                 return api_instance
             except Exception as e:
                 self._print(f"Error with {api_name}: {str(e)}")

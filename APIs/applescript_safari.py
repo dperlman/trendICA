@@ -9,6 +9,7 @@ import html
 from bs4 import BeautifulSoup
 from .base_classes import API_Call
 import pandas as pd
+from utils import _print_if_verbose
 
 # Constants
 WAIT_TIME = 10
@@ -223,7 +224,7 @@ def create_safari_window(url: Optional[str] = None, print_func: Optional[Callabl
         url (Optional[str]): URL to open in the new window. If None, opens an empty window.
         print_func (Optional[Callable]): Function to use for printing debug information
     """
-    print_func = print_func or limited_print
+    print_func = print_func or _print_if_verbose
         
     try:
         # AppleScript to create new window
@@ -332,7 +333,7 @@ def get_escaped_js_for_text_search_v1(search_text: str) -> str:
     # Then escape quotes and newlines for AppleScript
     return minified_js.replace('"', '\\"').replace('\n', ' ')
 
-def get_escaped_js_for_text_search_v2(search_text: str, query_selector: str) -> str:
+def get_escaped_js_for_text_search_v2(search_text: str, query_selector: str, print_func: Optional[Callable] = None) -> str:
     """
     Generate escaped JavaScript code to find elements matching the query selector that contain the given text.
     Recursively searches through child elements to find leaf nodes containing the text.
@@ -344,7 +345,8 @@ def get_escaped_js_for_text_search_v2(search_text: str, query_selector: str) -> 
     Returns:
         str: Escaped JavaScript code ready to be used in AppleScript
     """
-    print(f"V2 search Query selector: {query_selector}")
+    print_func = print_func or _print_if_verbose
+    print_func(f"V2 search Query selector: {query_selector}")
     js_code = f'''
     (function() {{
         try {{
@@ -442,7 +444,7 @@ def get_element_by_text(search_text: str, query_selector: Optional[str] = None, 
         List[Dict[str, str]]: List of dictionaries containing tag and text for each matching element.
         Only returns elements with matchType 'text' or 'script'. Returns empty list if only debug data found.
     """
-    print_func = print_func or limited_print
+    print_func = print_func or _print_if_verbose
     
     # Get escaped JavaScript code for finding the text
     if query_selector is None:
@@ -464,12 +466,8 @@ def get_element_by_text(search_text: str, query_selector: Optional[str] = None, 
     end tell
     '''
     
-    # print_func("Executing AppleScript:")
-    # print_func(script)
-    
     result = applescript.run(script)
-    #print(result.code)
-    #print(result.out)
+
     if result.code == 0 and result.out:
         import json
         data = json.loads(result.out)
@@ -537,7 +535,7 @@ def poll_for_text(search_text: str, max_tries: int = 10, wait_time: int = 1, pri
     Returns:
         List[Dict[str, str]]: List of matching elements if found, empty list if not found
     """
-    print_func = print_func or limited_print
+    print_func = print_func or _print_if_verbose
     
     last_debug_source = None
     for attempt in range(max_tries):
@@ -589,7 +587,7 @@ def confirm_page(confirm_terms: list, print_func: Optional[Callable] = None, max
             - missing: list of terms that were not found
             - found_html: list of HTML strings for each found term
     """
-    print_func = print_func or limited_print
+    print_func = print_func or _print_if_verbose
     
     missing_confirms = []
     found_confirms = []
@@ -644,7 +642,7 @@ def get_google_auth(
         Optional[str]: 'confirmed' if all checks pass, 'unconfirmed' if poll_text found but confirm_texts missing,
                       None if poll_text not found
     """
-    print_func = print_func or limited_print
+    print_func = print_func or _print_if_verbose
     
     confirm_config = CONFIRM_CONFIGS['google_auth']
     url = confirm_config['url']
@@ -679,7 +677,7 @@ def open_url_in_safari(url: str, print_func: Optional[Callable] = None) -> None:
         url (str): The URL to open
         print_func (Optional[Callable]): Function to use for printing debug information
     """
-    print_func = print_func or limited_print
+    print_func = print_func or _print_if_verbose
     
     try:
         print_func(f"Preparing to open URL: {url}")
@@ -722,7 +720,7 @@ def parse_trends_page(print_func: Optional[Callable] = None) -> str:
     Returns:
         str: Prettified HTML of the y1 element if found, empty string if not found
     """
-    print_func = print_func or limited_print
+    print_func = print_func or _print_if_verbose
     # This may need to be changed if Google changes the Trends page, which they often do, to stop us from doing exactly this.
     confirm_selector = 'div.line-chart-body-wrapper line-chart-directive div div div div div table'
     confirm_terms = ['x', 'y1', 'y2']
@@ -781,7 +779,7 @@ def trends_applescript_safari(
         result_parser (Callable): Function to parse the page results
         print_func (Optional[Callable]): Function to use for printing debug information
     """
-    print_func = print_func or limited_print
+    print_func = print_func or _print_if_verbose
     
     config = CONFIRM_CONFIGS['google_trends']
     url_template = config['url']

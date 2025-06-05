@@ -135,7 +135,7 @@ class SerpApi(API_Call):
                 ]
             }
             self.data.append(standardized_entry)
-            
+        self.print_func(f"Standardized data length: {len(self.data)}")
         return self
 
 def search_serpapi(

@@ -1,10 +1,11 @@
-from APIs import SerpApi, SerpWow, TrendsPy, SearchApi, SerpApiPy, ApplescriptSafari
+from APIs import SerpApi, SerpWow, TrendsPy, SearchApi, SerpApiPy, ApplescriptSafari, DummyApi
 from datetime import datetime
 from utils import load_config, _print_if_verbose
 import json
 import os
+import traceback
 
-def test_api(api_instance, api_name, verbose: bool = False):
+def test_api(api_instance, api_name, start_date, end_date, verbose: bool = False):
     """Test an API instance with the specified parameters and save results to files."""
     print(f"\n{'='*50}")
     print(f"Testing {api_name}")
@@ -17,8 +18,8 @@ def test_api(api_instance, api_name, verbose: bool = False):
         # Get both raw and standardized data
         api_instance.search(
             search_term=search_term,
-            start_date="2024-01-01",
-            end_date="2024-09-27"  # 270 days from start
+            start_date=start_date if start_date else None,
+            end_date=end_date if end_date else None
         )
         raw_data = api_instance.raw_data
         standardized_data = api_instance.standardize_data().data
@@ -40,51 +41,49 @@ def test_api(api_instance, api_name, verbose: bool = False):
         standardized_output_file = os.path.join('test_outputs', f"{api_name}_{search_term.replace(' ', '_')}_{current_time}_standardized.txt")
         with open(standardized_output_file, 'w') as f:
             f.write(standardized_data_str)
-        print(f"Standardized results saved to {standardized_output_file}")
+        print(f"Standardized results ({len(standardized_data)} records) saved to {standardized_output_file}")
             
     except Exception as e:
         print(f"Error testing {api_name}: {str(e)}")
+        print(traceback.format_exc())
 
 def main():
     # Load configuration
     config = load_config()
     
     # Get verbose flag from config or default to True
-    verbose = config.get('verbose', True)
+    verbose = config.get('verbose', False)
     
     tor_control_password = config.get('tor', {}).get('control_password')
+
+    start_date = "2024-01-01"
+    #end_date = "2024-09-26"
+    end_date = "2029-03-14" # 1899 days
+    #end_date = "2029-03-15" # 1900 days
+    #end_date = "2029-03-16" # 1901 days
+    
+    start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+    end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+    days_diff = (end_dt - start_dt).days
+    print(f"\n{'='*50}")
+    print(f"Start date: {start_date}, End date: {end_date}, Days difference: {days_diff}")
+    print(f"{'='*50}")
+
     
     # Initialize API instances with their respective keys
-    # apis = {
-    #     "SerpApi": SerpApi(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose),
-    #     "SerpWow": SerpWow(api_key=config.get('api_keys', {}).get('serpwow'), verbose=verbose),
-    #     "TrendsPy": TrendsPy(verbose=verbose, tor_control_password=tor_control_password, proxy="127.0.0.1:9150", change_identity=True),
-    #     "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose)
-    # }
+
     apis = {
-        "SerpApi": SerpApi(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose),
-        "SerpWow": SerpWow(api_key=config.get('api_keys', {}).get('serpwow'), verbose=verbose),
-        "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose),
-        "ApplescriptSafari": ApplescriptSafari(verbose=verbose)
+        #"SerpApi": SerpApi(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose),
+        #"SerpWow": SerpWow(api_key=config.get('api_keys', {}).get('serpwow'), verbose=verbose),
+        #"SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose),
+        #"ApplescriptSafari": ApplescriptSafari(verbose=verbose),
+        #"TrendsPy": TrendsPy(verbose=verbose, tor_control_password=tor_control_password, proxy="127.0.0.1:9150", change_identity=True),
+        "DummyApi": DummyApi(verbose=verbose)
     }
-    # apis = {
-    #     "SerpApiPy": SerpApiPy(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose)
-    # }
-    # apis = {
-    #     "SerpApi": SerpApi(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose)
-    # }
-    # apis = {
-    #     "SerpWow": SerpWow(api_key=config.get('api_keys', {}).get('serpwow'), verbose=verbose)
-    # }    
-    # apis = {
-    #     "SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose)
-    # }
-    # apis = {
-    #     "TrendsPy": TrendsPy(verbose=verbose, tor_control_password=tor_control_password, proxy="127.0.0.1:9150", change_identity=True)
-    # }
+
     # Test each API
     for api_name, api_instance in apis.items():
-        test_api(api_instance, api_name, verbose)
+        test_api(api_instance, api_name, start_date, end_date, verbose)
 
 if __name__ == "__main__":
     main() 

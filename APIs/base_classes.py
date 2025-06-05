@@ -1,7 +1,7 @@
 from typing import Union, List, Optional, Dict, Any, Callable
 from datetime import datetime
 import pandas as pd
-from utils import _print_if_verbose
+from utils import _print_if_verbose, load_config
 from .api_utils import standard_dict_to_df
 
 class API_Call:
@@ -49,6 +49,9 @@ class API_Call:
             api_endpoint (Optional[str]): The API endpoint URL. Defaults to None
             **kwargs: Additional keyword arguments specific to each API implementation
         """
+        # Load config
+        self.config = load_config()
+        
         self.api_key = api_key
         self.proxy = proxy
         self.change_identity = change_identity

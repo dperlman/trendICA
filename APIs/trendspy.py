@@ -2,7 +2,7 @@ import time
 import requests
 from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
-from .api_utils import change_tor_identity, make_time_range
+from .api_utils import change_tor_identity, make_time_range, standardize_date_str
 from .base_classes import API_Call
 import pandas as pd
 
@@ -154,7 +154,7 @@ class TrendsPy(API_Call):
         self.data = []
         for date, values in self.raw_data.items():
             standardized_entry = {
-                'date': date,
+                'date': standardize_date_str(date)['formatted_range']['ymd'],
                 'values': [
                     {
                         'value': value,
