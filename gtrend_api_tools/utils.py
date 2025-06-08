@@ -10,25 +10,46 @@ from typing import Optional, Callable, Union, Dict, Tuple, Any, List
 import yaml
 from dateutil.parser import parse, ParserError
 from types import SimpleNamespace
+import appdirs
+import shutil
 
 def load_config() -> dict:
     """
     Load configuration from config.yaml if it exists and return it.
     If the file doesn't exist, copies default_config.yaml to config.yaml and loads from that.
-    """
-    config_path = os.path.join(os.path.dirname(__file__), 'config.yaml')
-    default_config_path = os.path.join(os.path.dirname(__file__), 'default_config.yaml')
     
-    if not os.path.exists(config_path):
-        if os.path.exists(default_config_path):
-            import shutil
-            shutil.copy2(default_config_path, config_path)
-            print(f"Created config.yaml from default_config.yaml")
+    Config file locations (in order of precedence):
+    1. Local config: ./config.yaml (for development)
+    2. User config: ~/.config/gtrend_api_tools/config.yaml (for installed package)
+    3. Package default: gtrend_api_tools/config/default_config.yaml
+    """
+    # First check for local config.yaml (development mode)
+    local_config_path = os.path.join(os.getcwd(), 'config.yaml')
+    if os.path.exists(local_config_path):
+        with open(local_config_path, 'r') as f:
+            return yaml.safe_load(f)
+    
+    # Get user config directory
+    config_dir = appdirs.user_config_dir('gtrend_api_tools')
+    user_config_path = os.path.join(config_dir, 'config.yaml')
+    
+    # Package default config path
+    package_config_path = os.path.join(os.path.dirname(__file__), 'config', 'default_config.yaml')
+    
+    # Create user config directory if it doesn't exist
+    os.makedirs(config_dir, exist_ok=True)
+    
+    # If user config doesn't exist, copy from package default
+    if not os.path.exists(user_config_path):
+        if os.path.exists(package_config_path):
+            shutil.copy2(package_config_path, user_config_path)
+            print(f"Created user config at {user_config_path}")
         else:
-            print("Warning: Neither config.yaml nor default_config.yaml found")
+            print("Warning: Default config file not found in package")
             return {}
     
-    with open(config_path, 'r') as f:
+    # Load user config
+    with open(user_config_path, 'r') as f:
         config = yaml.safe_load(f)
     return config
 
@@ -80,36 +101,39 @@ def load_config() -> dict:
 #         print_func("Make sure Tor is running with control port enabled.")
 #         print_func(f"Add 'ControlPort {control_port}' to your torrc file and restart Tor.")
 
-def get_index_granularity(index: pd.DatetimeIndex, verbose: bool = False) -> str:
+def get_index_granularity(index: Union[pd.DatetimeIndex, pd.PeriodIndex], verbose: bool = False) -> str:
     """
-    Determine the granularity of a pandas DateTimeIndex.
+    Determine the granularity of a pandas DateTimeIndex or PeriodIndex.
     
     Args:
-        index (pd.DatetimeIndex): The DateTimeIndex to analyze
+        index (Union[pd.DatetimeIndex, pd.PeriodIndex]): The index to analyze
         verbose (bool): Whether to print debug information
         
     Returns:
         str: The granularity code ('h' for hour, 'D' for day, 'W' for week, 'ME' for month end)
     """
-    # Handle empty DataFrame or non-DatetimeIndex
-    if len(index) == 0 or not isinstance(index, pd.DatetimeIndex):
+    # Handle empty DataFrame or invalid index type
+    if len(index) == 0 or not isinstance(index, (pd.DatetimeIndex, pd.PeriodIndex)):
         return 'D'  # Default to daily granularity
         
     # First try to get the frequency directly
     if index.freq is not None:
         freq_str = str(index.freq)
-        if 'h' in freq_str:
+        if freq_str.startswith('h'):
             return 'h'
-        elif 'D' in freq_str:
+        elif freq_str.startswith('D'):
             return 'D'
-        elif 'W' in freq_str:
+        elif freq_str.startswith('W'):
             return 'W'
-        elif 'M' in freq_str or 'ME' in freq_str:
-            return 'ME'
-    
+        elif freq_str.startswith('M'):
+            return 'M'
     # If no frequency is set, try to infer from time differences
     if len(index) < 2:
         return 'D'  # Default to day if we can't determine
+    
+    # Convert PeriodIndex to DatetimeIndex if needed
+    if isinstance(index, pd.PeriodIndex):
+        index = index.to_timestamp()
     
     # Calculate time differences in nanoseconds
     time_diffs = np.diff(index.astype(np.int64))

@@ -1,7 +1,13 @@
-from gtrend import Trends
-from datetime import datetime
-from utils import load_config
 import os
+import sys
+
+# Add the project root directory to the Python path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
+from gtrend_api_tools import Trends
+from gtrend_api_tools import load_config
+from datetime import datetime
 import json
 
 def test_search(trends_instance, test_case):
@@ -11,22 +17,31 @@ def test_search(trends_instance, test_case):
     print(f"  Search term: {test_case['search_term']}")
     print(f"  Start date: {test_case['start_date']}")
     print(f"  End date: {test_case.get('end_date', 'None')}")
-    print(f"  Granularity: {test_case.get('granularity', 'day')}")
+    print(f"  Granularity: {test_case.get('granularity', 'None (default)')}")
     print(f"{'='*50}")
     
     current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     
     try:
         # Perform the search
-        results = trends_instance.search(
-            search_term=test_case['search_term'],
-            start_date=test_case['start_date'],
-            end_date=test_case.get('end_date'),
-            granularity=test_case.get('granularity', 'day')
-        )
+        search_params = {
+            'search_term': test_case['search_term'],
+            'start_date': test_case['start_date'],
+            'end_date': test_case.get('end_date')
+        }
+        
+        # Only add granularity if it's specified
+        if 'granularity' in test_case:
+            search_params['granularity'] = test_case['granularity']
+            
+        # Chain the method calls
+        trends_instance.search(**search_params).standardize_data()
         
         # Create test_outputs directory if it doesn't exist
         os.makedirs('test_outputs', exist_ok=True)
+        
+        # Get the data from the trends instance
+        results = trends_instance.data
         
         # Convert results to formatted JSON string
         results_str = json.dumps(results, indent=2, sort_keys=True)
@@ -47,11 +62,11 @@ def main():
     config = load_config()
     
     # Get verbose flag from config or default to True
-    verbose = config.get('verbose', True)
+    verbose = config.get('verbose', 'INFO')
     
     # Initialize Trends instance with smart_tpy mode
     trends = Trends(
-        api="serpapi",
+        use_api="applescript_safari",
         verbose=verbose,
         proxy="127.0.0.1:9150",
         change_identity=True
@@ -63,14 +78,20 @@ def main():
             'search_term': 'coffee,tea',
             'start_date': '2024-01-01',
             'end_date': '2024-03-01',
-            'granularity': 'day'
+            'granularity': 'D'  # Daily granularity using pandas frequency string
         },
         {
-            'search_term': 'bitcoin,ethereum,cardano,dogecoin,solana',
-            'start_date': '2024-01-01',
-            'end_date': '2024-02-01',
-            'granularity': 'day'
+            'search_term': 'coffee,tea',
+            'start_date': '2023-01-01',
+            'end_date': '2023-03-01'
+            # No granularity specified to test default behavior
         }
+        # {
+        #     'search_term': 'bitcoin,ethereum,cardano,dogecoin,solana',
+        #     'start_date': '2024-01-01',
+        #     'end_date': '2024-02-01',
+        #     'granularity': 'D'
+        # }
     ]
     
     # Run each test case

@@ -12,7 +12,6 @@ setup(
         "pandas",
         "requests",
         "pyyaml",
-        "appdirs",  # For config file locations
     ],
     extras_require={
         'tor': ['stem'],  # for Tor control

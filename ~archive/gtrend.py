@@ -7,6 +7,7 @@ import math
 import numpy as np
 from scipy.optimize import minimize_scalar
 from dateutil.parser import parse
+import traceback
 
 from utils import (
     load_config,
@@ -1098,6 +1099,7 @@ class Trends:
                 return api_instance
             except Exception as e:
                 self._print(f"Error with {api_name}: {str(e)}")
+                print(traceback.format_exc())
                 continue
         
         raise Exception("All APIs in the configured order failed")

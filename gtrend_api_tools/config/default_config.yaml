@@ -1,7 +1,7 @@
 api_keys:
-  serpapi: "my_serpapi_key"
-  serpwow: "my_serpwow_key"
-  searchapi: "my_searchapi_key"
+  serpapi: "76f3ea1f6758054f7bb79457102d937bc1dff7ae4a1ecc98e6a5751530a11824"
+  serpwow: "063CF8C35D1E42FF96E7262A2AD04C00"
+  searchapi: "Ci1r51NbstLbdH8F2KVEh6jT"
 
 tor:
   control_password: "controlpass" 
@@ -27,6 +27,16 @@ api_modes:
     description: "searchapi"
     api_order:
       - searchapi
+
+  - name: "applescript_safari"
+    description: "applescript_safari"
+    api_order:
+      - applescript_safari
+
+  - name: "dummy"
+    description: "dummy data, no api call"
+    api_order:
+      - dummy
 
   - name: "smart_tpy"
     description: "trendspy:serpapi:serpwow:searchapi"
@@ -58,3 +68,19 @@ api_modes:
       - serpapi
       - serpwow
       - searchapi
+
+granularity_rules:
+  - name: "hourly"
+    max_days: 8
+    max_inclusive: True  # means <= 8 days
+    code: "h"
+  - name: "daily"
+    max_days: 270
+    max_inclusive: True  # means <= 270 days
+    code: "D"
+  - name: "weekly"
+    max_days: 1900
+    max_inclusive: True  # means <= 1900 days
+    code: "W"
+  - name: "monthly"
+    code: "MS"  # No max_days needed since it's the last level

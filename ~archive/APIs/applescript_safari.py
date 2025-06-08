@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 from .base_classes import API_Call
 import pandas as pd
 from utils import _print_if_verbose
+from .api_utils import make_time_range
 
 # Constants
 WAIT_TIME = 10
@@ -92,18 +93,9 @@ class ApplescriptSafari(API_Call):
             self.print_func(f"Query: {query}")
             
             # Handle date range
-            if start_date and end_date:
-                # Validate date format
-                try:
-                    datetime.strptime(start_date, "%Y-%m-%d")
-                    datetime.strptime(end_date, "%Y-%m-%d")
-                    date_range = quote(f"{start_date} {end_date}")
-                    self.print_func(f"Encoded date range: {date_range}")
-                except ValueError:
-                    raise ValueError("Dates must be in YYYY-MM-DD format")
-            else:
-                date_range = "all"
-                self.print_func("Using default date range: all")
+            time_range = make_time_range(start_date, end_date)
+            date_range = quote(time_range['ymd'])
+            self.print_func(f"Encoded date range: {date_range}")
             
             # Construct the URL
             formatted_url = url_template.format(date_range=date_range, query=query, geo=self.geo)
@@ -794,19 +786,9 @@ def trends_applescript_safari(
     print_func(f"Encoded query: {query}")
     
     # Handle date range
-    if start_date and end_date:
-        # Validate date format
-        try:
-            datetime.strptime(start_date, "%Y-%m-%d")
-            datetime.strptime(end_date, "%Y-%m-%d")
-            date_range = quote(f"{start_date} {end_date}")
-            print_func(f"Encoded date range: {date_range}")
-        except ValueError:
-            print_func("Error: Dates must be in YYYY-MM-DD format")
-            return
-    else:
-        date_range = "all"
-        print_func("Using default date range: all")
+    time_range = make_time_range(start_date, end_date)
+    date_range = quote(time_range.ymd)
+    print_func(f"Encoded date range: {date_range}")
     
     # Construct the URL using format
     try:

@@ -1,0 +1,236 @@
+[
+  {
+    "date": "2024-01-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 89
+      },
+      {
+        "query": "tea",
+        "value": 55
+      }
+    ]
+  },
+  {
+    "date": "2024-02-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 87
+      },
+      {
+        "query": "tea",
+        "value": 52
+      }
+    ]
+  },
+  {
+    "date": "2024-03-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 93
+      },
+      {
+        "query": "tea",
+        "value": 51
+      }
+    ]
+  },
+  {
+    "date": "2024-04-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 86
+      },
+      {
+        "query": "tea",
+        "value": 52
+      }
+    ]
+  },
+  {
+    "date": "2024-05-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 90
+      },
+      {
+        "query": "tea",
+        "value": 51
+      }
+    ]
+  },
+  {
+    "date": "2024-06-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 89
+      },
+      {
+        "query": "tea",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "date": "2024-07-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 87
+      },
+      {
+        "query": "tea",
+        "value": 49
+      }
+    ]
+  },
+  {
+    "date": "2024-08-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 91
+      },
+      {
+        "query": "tea",
+        "value": 48
+      }
+    ]
+  },
+  {
+    "date": "2024-09-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 91
+      },
+      {
+        "query": "tea",
+        "value": 49
+      }
+    ]
+  },
+  {
+    "date": "2024-10-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 85
+      },
+      {
+        "query": "tea",
+        "value": 51
+      }
+    ]
+  },
+  {
+    "date": "2024-11-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 93
+      },
+      {
+        "query": "tea",
+        "value": 51
+      }
+    ]
+  },
+  {
+    "date": "2024-12-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 100
+      },
+      {
+        "query": "tea",
+        "value": 57
+      }
+    ]
+  },
+  {
+    "date": "2025-01-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 95
+      },
+      {
+        "query": "tea",
+        "value": 57
+      }
+    ]
+  },
+  {
+    "date": "2025-02-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 91
+      },
+      {
+        "query": "tea",
+        "value": 54
+      }
+    ]
+  },
+  {
+    "date": "2025-03-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 97
+      },
+      {
+        "query": "tea",
+        "value": 54
+      }
+    ]
+  },
+  {
+    "date": "2025-04-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 93
+      },
+      {
+        "query": "tea",
+        "value": 53
+      }
+    ]
+  },
+  {
+    "date": "2025-05-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 97
+      },
+      {
+        "query": "tea",
+        "value": 53
+      }
+    ]
+  },
+  {
+    "date": "2025-06-01",
+    "values": [
+      {
+        "query": "coffee",
+        "value": 98
+      },
+      {
+        "query": "tea",
+        "value": 52
+      }
+    ]
+  }
+]

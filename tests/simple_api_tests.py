@@ -1,8 +1,11 @@
+import os
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from APIs import SerpApi, SerpWow, TrendsPy, SearchApi, SerpApiPy, ApplescriptSafari, DummyApi
 from datetime import datetime
 from utils import load_config, _print_if_verbose
 import json
-import os
 import traceback
 
 def test_api(api_instance, api_name, start_date, end_date, verbose: bool = False):
@@ -76,9 +79,9 @@ def main():
         #"SerpApi": SerpApi(api_key=config.get('api_keys', {}).get('serpapi'), verbose=verbose),
         #"SerpWow": SerpWow(api_key=config.get('api_keys', {}).get('serpwow'), verbose=verbose),
         #"SearchApi": SearchApi(api_key=config.get('api_keys', {}).get('searchapi'), verbose=verbose),
-        #"ApplescriptSafari": ApplescriptSafari(verbose=verbose),
+        "ApplescriptSafari": ApplescriptSafari(verbose=verbose),
         #"TrendsPy": TrendsPy(verbose=verbose, tor_control_password=tor_control_password, proxy="127.0.0.1:9150", change_identity=True),
-        "DummyApi": DummyApi(verbose=verbose)
+        #"DummyApi": DummyApi(verbose=verbose)
     }
 
     # Test each API

@@ -8,7 +8,7 @@ import unicodedata
 import re
 from types import SimpleNamespace
 from dateutil.parser import parse, ParserError
-from utils import load_config, _print_if_verbose
+from ..utils import load_config, _print_if_verbose, get_index_granularity
 import numpy as np
 
 def change_tor_identity(password: Optional[str], print_func: Optional[Callable] = None, control_port: Optional[int] = None) -> None:
@@ -61,19 +61,18 @@ def change_tor_identity(password: Optional[str], print_func: Optional[Callable] 
 def make_time_range(
     start_date: Optional[Union[str, datetime]] = None,
     end_date: Optional[Union[str, datetime]] = None
-) -> SimpleNamespace:
+) -> Dict[str, Union[str, datetime]]:
     """
     Convert start_date and end_date into a formatted time range string.
     If dates are strings, they will be parsed into datetime objects.
     If no dates are provided, defaults to the last 270 days.
-    The output format will be "YYYY-MM-DD YYYY-MM-DD".
     
     Args:
         start_date (Optional[Union[str, datetime]]): Start date. If string, will be parsed with dateutil.parser
         end_date (Optional[Union[str, datetime]]): End date. If string, will be parsed with dateutil.parser
         
     Returns:
-        SimpleNamespace: Object containing:
+        Dict[str, Union[str, datetime]]: Dictionary containing:
             - ymd: Time range string in format "YYYY-MM-DD YYYY-MM-DD"
             - mdy: Time range string in format "MM/DD/YYYY MM/DD/YYYY"
             - start_datetime: Start date as datetime object
@@ -347,31 +346,14 @@ def standard_dict_to_df(standardized_data: List[Dict[str, Any]]) -> pd.DataFrame
     # Create DataFrame from the dictionary
     df = pd.DataFrame(data_dict)
     
-    # Convert index to datetime first, then to period
+    # Convert index to datetime if it's not already
     df.index = pd.to_datetime(df.index)
     
-    # Determine the appropriate frequency for the PeriodIndex
-    # Get the time differences between consecutive dates
-    time_diffs = df.index.to_series().diff()
+    # Get the frequency using the utility function
+    freq = get_index_granularity(df.index)
     
-    # If all differences are 1 day, use daily frequency
-    if (time_diffs == pd.Timedelta(days=1)).all():
-        freq = 'D'
-    # If all differences are 1 week, use weekly frequency
-    elif (time_diffs == pd.Timedelta(weeks=1)).all():
-        freq = 'W'
-    # If all dates are the first of the month, use monthly frequency
-    elif (df.index.day == 1).all():
-        freq = 'MS'
-    # If all differences are 1 hour, use hourly frequency
-    elif (time_diffs == pd.Timedelta(hours=1)).all():
-        freq = 'h'
-    else:
-        # Default to daily frequency if we can't determine
-        freq = 'D'
-    
-    # Convert to PeriodIndex
-    df.index = df.index.to_period(freq)
+    # Set the frequency on the index
+    df.index.freq = freq
     
     # Sort by date
     df = df.sort_index()
