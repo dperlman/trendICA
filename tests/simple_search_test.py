@@ -35,8 +35,12 @@ def test_search(trends_instance, test_case):
             search_params['granularity'] = test_case['granularity']
             
         # Chain the method calls
-        trends_instance.search(**search_params).standardize_data()
-        
+        instance = trends_instance.search(**search_params).standardize_data()
+        print("="*80)
+        print(f"instance:")
+        print(instance)
+        print("="*80)
+
         # Create test_outputs directory if it doesn't exist
         os.makedirs('test_outputs', exist_ok=True)
         
@@ -69,7 +73,8 @@ def main():
         use_api="applescript_safari",
         verbose=verbose,
         proxy="127.0.0.1:9150",
-        change_identity=True
+        change_identity=True,
+        close_tab=True
     )
     
     # Define test cases

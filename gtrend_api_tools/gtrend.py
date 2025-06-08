@@ -45,7 +45,8 @@ class Trends:
         verbose: str = "INFO",
         api_mode: Optional[str] = None,
         use_api: Optional[str] = None,
-        auth_email: Optional[str] = None
+        auth_email: Optional[str] = None,
+        close_tab: Optional[bool] = False
     ) -> None:
         """
         Initialize the Trends class with configuration parameters.
@@ -76,6 +77,7 @@ class Trends:
             use_api (Optional[str]): Override api_mode and use a specific API. Must be one of the APIs defined in
                                    APIs.__init__ available_apis. If provided, api_mode is ignored.
             auth_email (Optional[str]): Email address to use for Google authentication. If None, no specific email will be used.
+            close_tab (bool): Whether to close tabs between searches. Defaults to False.
         
         Raises:
             ValueError: If neither api_mode nor use_api is provided, or if the specified API mode is not found in config.yaml,
@@ -130,6 +132,7 @@ class Trends:
         self.dry_run = dry_run
         self.verbose = verbose
         self.auth_email = auth_email
+        self.close_tab = close_tab
         
         # Load Tor settings from config
         tor_config = self.config.get('tor', {})
@@ -303,10 +306,10 @@ class Trends:
                 )
 
         # Print search log summary
-        logger.info(f"\nSearch Summary:")
+        logger.info(f"Search Summary:")
         logger.info(f"Total searches performed: {len(self.main_log)}")
         logger.info(f"API mode: {self.api_mode['name']}")
-        logger.info("\nSearch details:")
+        logger.info("Search details:")
         for i, log in enumerate(self.main_log, 1):
             error_str = f" [ERROR: {log['error']}]" if 'error' in log else ""
             warning_str = f" [WARNING: {log['warning']}]" if 'warning' in log else ""
@@ -352,6 +355,7 @@ class Trends:
                 api_instance = self.api_instances[api_name]
             else:
                 # Create new API instance with our config
+                self._print(f"Creating new API instance for {api_name}")
                 api_instance = api_info['class'](
                     api_key=self.api_keys.get(api_name),
                     proxy=self.proxy,
@@ -360,7 +364,8 @@ class Trends:
                     tor_control_password=self.tor_control_password,
                     verbose=self.verbose,
                     print_func=self._print,
-                    auth_email=self.auth_email
+                    auth_email=self.auth_email,
+                    close_tabs=self.close_tab
                 )
                 # Store the instance for potential reuse
                 self.api_instances[api_name] = api_instance
