@@ -1,8 +1,48 @@
 from typing import Union, List, Optional, Dict, Any, Callable
 from datetime import datetime
 import pandas as pd
-from ..utils import _print_if_verbose, load_config
-from .api_utils import standard_dict_to_df
+from utils import _print_if_verbose, load_config
+from api_utils import standard_dict_to_df
+from date_ranges import DateRange
+
+class SearchSpec(DateRange):
+    """
+    A class that extends DateRange to include search terms.
+    This class handles both date range and search terms for a single search operation.
+    """
+    def __init__(
+        self,
+        terms: Optional[Union[str, List[str]]] = None,
+        start_date: Optional[Union[str, datetime]] = None,
+        end_date: Optional[Union[str, datetime]] = None,
+        granularity: str = 'D',
+        verbose: bool = False
+    ):
+        """
+        Initialize a SearchSpec instance.
+        
+        Args:
+            terms (Optional[Union[str, List[str]]]): Search terms. If string, will be split on commas
+            start_date (Optional[Union[str, datetime]]): Start date for the search
+            end_date (Optional[Union[str, datetime]]): End date for the search
+            granularity (str): The granularity of the date range. One of: 's' (seconds), 'm' (minutes), 'h' (hourly), 
+                             'D' (daily), 'W' (weekly), 'M' (monthly), 'Q' (quarterly), 'Y' (yearly), 'X' (decade).
+                             Defaults to 'D'.
+            verbose (bool): Whether to print debug information
+        """
+        # Initialize DateRange first with dates
+        super().__init__(start_date=start_date, end_date=end_date, granularity=granularity, verbose=verbose)
+        
+        # Handle terms
+        if terms is not None:
+            if isinstance(terms, str):
+                self.terms = [term.strip() for term in terms.split(',')]
+            else:
+                self.terms = terms
+            self.term_string = ','.join(self.terms)
+        else:
+            self.terms = []
+            self.term_string = ''
 
 class API_Call:
     """
@@ -26,6 +66,7 @@ class API_Call:
         print_func: Optional[Callable] = None,
         tor_control_password: Optional[str] = None,
         api_endpoint: Optional[str] = None,
+        granularity: str = 'D',
         **kwargs
     ):
         """
@@ -47,6 +88,9 @@ class API_Call:
             print_func (Optional[Callable]): Function to use for printing debug information. If None, uses _print_if_verbose
             tor_control_password (Optional[str]): Password for Tor control port. Required if change_identity is True
             api_endpoint (Optional[str]): The API endpoint URL. Defaults to None
+            granularity (str): The granularity of the date range. One of: 's' (seconds), 'm' (minutes), 'h' (hourly), 
+                             'D' (daily), 'W' (weekly), 'M' (monthly), 'Q' (quarterly), 'Y' (yearly), 'X' (decade).
+                             Defaults to 'D'.
             **kwargs: Additional keyword arguments specific to each API implementation
         """
         # Load config
@@ -66,11 +110,13 @@ class API_Call:
         self.verbose = verbose
         self.tor_control_password = tor_control_password
         self.api_endpoint = api_endpoint
+        self.granularity = granularity
         self.kwargs = kwargs
         self._search_history = []
         self._raw_data_history = []
         self._data_history = []
         self._dataframe_history = []
+        self._date_range = None
 
         # Create a closure that captures self.verbose
         def make_print_func(verbose: bool) -> callable:
@@ -97,7 +143,20 @@ class API_Call:
         Returns:
             API_Call: Returns self for method chaining. The raw data is stored in self.raw_data
         """
-        raise NotImplementedError("Subclasses must implement search method")
+        # Create SearchSpec instance
+        search_spec = SearchSpec(
+            terms=search_term,
+            start_date=start_date,
+            end_date=end_date,
+            granularity=self.granularity,
+            verbose=self.verbose
+        )
+        
+
+        # Set as current search_spec
+        self.search_spec = search_spec
+
+        return self
 
     def standardize_data(self) -> 'API_Call':
         """
@@ -253,12 +312,12 @@ class API_Call:
         self._search_history.append(value)
 
     @property
-    def search_spec(self) -> Dict[str, Any]:
+    def search_spec(self) -> SearchSpec:
         """
         Get the current search specification.
         
         Returns:
-            Dict[str, Any]: The current search specification including terms, dates, etc.
+            SearchSpec: The current search specification including terms and dates
             
         Raises:
             ValueError: If no search specification is available
@@ -268,15 +327,11 @@ class API_Call:
         return self._search_history[-1]
 
     @search_spec.setter
-    def search_spec(self, spec: Dict[str, Any]) -> None:
+    def search_spec(self, spec: SearchSpec) -> None:
         """
         Set the current search specification and append it to the history.
         
         Args:
-            spec (Dict[str, Any]): Dictionary containing search parameters
+            spec (SearchSpec): Search specification to set
         """
-        # If terms is a string, split it on commas
-        if isinstance(spec.get('terms'), str):
-            spec['terms'] = [term.strip() for term in spec['terms'].split(',')]
-            
         self._search_history.append(spec) 

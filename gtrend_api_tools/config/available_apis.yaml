@@ -1,0 +1,39 @@
+trendspy:
+  class: TrendsPy
+  type: free
+  description: Uses trendspy library for Google Trends data
+
+serpapi:
+  class: SerpApi
+  type: paid
+  description: Uses SerpAPI service with direct HTTP requests
+
+serpwow:
+  class: SerpWow
+  type: paid
+  description: Uses SerpWow service
+
+searchapi:
+  class: SearchApi
+  type: paid
+  description: Uses SearchAPI service
+
+serpapi_python:
+  class: SerpApiPy
+  type: paid
+  description: Uses SerpAPI service with the official Python library
+
+applescript_safari:
+  class: ApplescriptSafari
+  type: free
+  description: Uses Safari and AppleScript to access Google Trends
+
+dummy_api:
+  class: DummyApi
+  type: free
+  description: Generates dummy data for testing and development
+
+win_uiauto_edge:
+  class: WinUiautoEdge
+  type: free
+  description: Uses Windows UI Automation to access Google Trends via Edge browser (not implemented) 

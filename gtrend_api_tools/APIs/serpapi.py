@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Union, List, Optional, Dict, Any
 import pandas as pd
 import unicodedata
-from .api_utils import make_time_range
+from .api_utils import make_time_range, standardize_date_str
 from .base_classes import API_Call
 
 class SerpApi(API_Call):
@@ -125,7 +125,7 @@ class SerpApi(API_Call):
         self.data = []
         for entry in timeline:
             standardized_entry = {
-                'date': unicodedata.normalize('NFKC', entry['date']),
+                'date': standardize_date_str(entry['date'])['formatted_range']['ymd'],
                 'values': [
                     {
                         'value': item['extracted_value'],

@@ -16,11 +16,7 @@ from .utils import (
     _print_if_verbose,
 )
 
-from .granularity import (
-    get_index_granularity,
-    calculate_search_granularity,
-    GranularityConfig
-)
+from .granularity import GranularityManager
 
 # Import API_Call type for type hints
 from .APIs.base_classes import API_Call
@@ -153,27 +149,12 @@ class Trends:
         # Initialize API instances dictionary
         self.api_instances = {}
 
-        # Set up wrapper methods for utility functions
-        def _calculate_search_granularity_wrapper(
-            start_date: Union[str, datetime],
-            end_date: Union[str, datetime],
-            verbose: Optional[bool] = None
-        ) -> Dict[str, Union[str, pd.DatetimeIndex, pd.PeriodIndex]]:
-            """Wrapper for calculate_search_granularity that includes config."""
-            return calculate_search_granularity(
-                start_date=start_date,
-                end_date=end_date,
-                config=self.config,
-                verbose=verbose if verbose is not None else self.verbose
-            )
+        # Initialize granularity manager
+        self.granularity = GranularityManager(self.config)
 
-        def _get_index_granularity_wrapper(index: pd.DatetimeIndex) -> str:
-            """Wrapper for get_index_granularity."""
-            return get_index_granularity(index)
-
-        # Bind the wrapper methods to the instance
-        self._calculate_search_granularity = _calculate_search_granularity_wrapper
-        self._get_index_granularity = _get_index_granularity_wrapper
+        # Set up direct references to granularity manager methods
+        self._calculate_search_granularity = self.granularity.calculate_search_granularity
+        self._get_index_granularity = self.granularity.get_index_granularity
 
         # Initialize logging level based on verbose parameter
         valid_levels = {'DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'}
@@ -277,10 +258,9 @@ class Trends:
             )
         else:
             # Calculate granularity info
-            granularity_info = calculate_search_granularity(
+            granularity_info = self._calculate_search_granularity(
                 start_date=start_dt,
                 end_date=end_dt,
-                granularity=granularity
             )
             
             # If blocks > 1, use collated search
@@ -422,18 +402,15 @@ class Trends:
         granularity_code = granularity[0]
             
         # Get max records for the requested granularity
-        granularity_config = GranularityConfig(self.config)
-        
         # Check if this is the unlimited granularity (last rule without max_days)
-        unlimited_rule = next((rule for rule in reversed(granularity_config.rules) 
+        unlimited_rule = next((rule for rule in reversed(self.granularity.rules) 
                              if 'max_days' not in rule), None)
         if unlimited_rule and unlimited_rule['code'][0] == granularity_code:
             raise ValueError(
                 f"{granularity_code} granularity is not supported by _search_max_records_by_granularity as it has no maximum record limit. "
-                #f"Use _search_by_{unlimited_rule['name']} instead."
             )
             
-        max_records = granularity_config.get_max_records(granularity_code)
+        max_records = self.granularity.rules[granularity_code]['max_records']
         
         # Calculate end_date based on granularity and max_records
         if granularity_code == 'h':
@@ -456,7 +433,7 @@ class Trends:
         results = api_instance.standardize_data().make_dataframe().dataframe
         
         # Validate granularity (using first letter only)
-        actual_granularity = self._get_index_granularity(results.index)[0]
+        actual_granularity = self._get_index_granularity(results.index)
         if actual_granularity != granularity_code:
             raise ValueError(
                 f"Expected {granularity_code} granularity but got {actual_granularity}. "

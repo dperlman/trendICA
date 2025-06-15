@@ -8,8 +8,46 @@ import unicodedata
 import re
 from types import SimpleNamespace
 from dateutil.parser import parse, ParserError
-from ..utils import load_config, _print_if_verbose, get_index_granularity
+from utils import load_config, _print_if_verbose, get_index_granularity
 import numpy as np
+
+def load_api_config() -> Dict[str, Any]:
+    """
+    Load the API configuration from available_apis.yaml in the config directory.
+    
+    Returns:
+        Dict[str, Any]: Dictionary containing API configurations
+        
+    Raises:
+        FileNotFoundError: If available_apis.yaml is not found
+        yaml.YAMLError: If the YAML file is invalid
+    """
+    # Get the package directory (one level up from this file)
+    package_dir = os.path.dirname(os.path.dirname(__file__))
+    config_path = os.path.join(package_dir, 'config', 'available_apis.yaml')
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+def get_api_class_name(file_name: str) -> Optional[str]:
+    """
+    Get the class name for an API from its file name using the configuration.
+    
+    Args:
+        file_name (str): The API file name (e.g., 'dummy_api.py')
+        
+    Returns:
+        Optional[str]: The class name if found, None otherwise
+    """
+    # Remove .py extension
+    api_name = file_name.replace('.py', '')
+    
+    # Load configuration
+    config = load_api_config()
+    
+    # Look up the API in the config
+    if api_name in config:
+        return config[api_name]['class']
+    return None
 
 def change_tor_identity(password: Optional[str], print_func: Optional[Callable] = None, control_port: Optional[int] = None) -> None:
     """
@@ -58,258 +96,282 @@ def change_tor_identity(password: Optional[str], print_func: Optional[Callable] 
         print_func("Make sure Tor is running with control port enabled.")
         print_func(f"Add 'ControlPort {control_port}' to your torrc file and restart Tor.")
 
-def make_time_range(
-    start_date: Optional[Union[str, datetime]] = None,
-    end_date: Optional[Union[str, datetime]] = None
-) -> Dict[str, Union[str, datetime]]:
-    """
-    Convert start_date and end_date into a formatted time range string.
-    If dates are strings, they will be parsed into datetime objects.
-    If no dates are provided, defaults to the last 270 days.
+# def make_time_range(
+#     start_date: Optional[Union[str, datetime]] = None,
+#     end_date: Optional[Union[str, datetime]] = None
+# ) -> Dict[str, Union[str, datetime]]:
+#     """
+#     Convert start_date and end_date into a formatted time range string.
+#     If dates are strings, they will be parsed into datetime objects.
+#     If no dates are provided, defaults to the last 270 days.
     
-    Args:
-        start_date (Optional[Union[str, datetime]]): Start date. If string, will be parsed with dateutil.parser
-        end_date (Optional[Union[str, datetime]]): End date. If string, will be parsed with dateutil.parser
+#     Args:
+#         start_date (Optional[Union[str, datetime]]): Start date. If string, will be parsed with dateutil.parser
+#         end_date (Optional[Union[str, datetime]]): End date. If string, will be parsed with dateutil.parser
         
-    Returns:
-        Dict[str, Union[str, datetime]]: Dictionary containing:
-            - ymd: Time range string in format "YYYY-MM-DD YYYY-MM-DD"
-            - mdy: Time range string in format "MM/DD/YYYY MM/DD/YYYY"
-            - start_datetime: Start date as datetime object
-            - end_datetime: End date as datetime object
-    """
-    # If no dates provided, default to last 270 days
-    if not start_date and not end_date:
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=270)
+#     Returns:
+#         Dict[str, Union[str, datetime]]: Dictionary containing:
+#             - ymd: Time range string in format "YYYY-MM-DD YYYY-MM-DD"
+#             - mdy: Time range string in format "MM/DD/YYYY MM/DD/YYYY"
+#             - start_datetime: Start date as datetime object
+#             - end_datetime: End date as datetime object
+#     """
+#     # If no dates provided, default to last 270 days
+#     if not start_date and not end_date:
+#         end_date = datetime.now()
+#         start_date = end_date - timedelta(days=270)
 
-    # default datetime object for parser is january 1 of this year and has hour zero
-    default_datetime = datetime(2025, 1, 1, 0, 0, 0)
+#     # default datetime object for parser is january 1 of this year and has hour zero
+#     default_datetime = datetime(2025, 1, 1, 0, 0, 0)
 
-    # Parse string dates into datetime objects
-    if isinstance(start_date, str):
-        start_date = parse(start_date, default=default_datetime)
-    if isinstance(end_date, str):
-        end_date = parse(end_date, default=default_datetime)
+#     # Parse string dates into datetime objects
+#     if isinstance(start_date, str):
+#         start_date = parse(start_date, default=default_datetime)
+#     if isinstance(end_date, str):
+#         end_date = parse(end_date, default=default_datetime)
         
-    # Format dates as YYYY-MM-DD
-    start_str_ymd = start_date.strftime("%Y-%m-%d") if start_date else ""
-    end_str_ymd = end_date.strftime("%Y-%m-%d") if end_date else ""
+#     # Format dates as YYYY-MM-DD
+#     start_str_ymd = start_date.strftime("%Y-%m-%d") if start_date else ""
+#     end_str_ymd = end_date.strftime("%Y-%m-%d") if end_date else ""
     
-    # Format dates as MM/DD/YYYY
-    start_str_mdy = start_date.strftime("%m/%d/%Y") if start_date else ""
-    end_str_mdy = end_date.strftime("%m/%d/%Y") if end_date else ""
+#     # Format dates as MM/DD/YYYY
+#     start_str_mdy = start_date.strftime("%m/%d/%Y") if start_date else ""
+#     end_str_mdy = end_date.strftime("%m/%d/%Y") if end_date else ""
     
-    # Combine into time range strings
-    time_range_ymd = f"{start_str_ymd} {end_str_ymd}".strip()
-    time_range_mdy = f"{start_str_mdy} {end_str_mdy}".strip()
+#     # Combine into time range strings
+#     time_range_ymd = f"{start_str_ymd} {end_str_ymd}".strip()
+#     time_range_mdy = f"{start_str_mdy} {end_str_mdy}".strip()
     
-    return {
-        "ymd": time_range_ymd,
-        "mdy": time_range_mdy,
-        "start_datetime": start_date,
-        "end_datetime": end_date
-    }
+#     return {
+#         "formatted_range_ymd": time_range_ymd,
+#         "formatted_range_mdy": time_range_mdy,
+#         "start_datetime": start_date,
+#         "end_datetime": end_date
+#     }
 
-def standardize_date_str(date_str: str, verbose: bool = False) -> Tuple[str, str, str]:
-    """
-    Get each date in a date range. We especially need to use this to standardize the date strings in the standardize_data output.
+# def standardize_date_str(date_str: str, verbose: bool = False) -> Dict[str, Any]:
+#     """
+#     Get each date in a date range. We especially need to use this to standardize the date strings in the standardize_data output.
     
-    Args:
-        date_str (str): Date range string in format like "Dec 31, 2023 – Jan 6, 2024" or "Jan 7 – 13, 2024"
+#     Args:
+#         date_str (str): Date range string in format like "Dec 31, 2023 – Jan 6, 2024" or "Jan 7 – 13, 2024"
+#         verbose (bool): Whether to print verbose debug information
         
-    Returns:
-        Tuple[str, str, str]: The cleaned orignal date if applicable, start date, and end date. End date is None if no end date is provided
-        
-    Raises:
-        ValueError: If the date string cannot be parsed
-    """
+#     Returns:
+#         Dict[str, Any]: Dictionary containing:
+#             - original_date: The cleaned original date string
+#             - first_date: The first date in the range
+#             - second_date: The second date in the range (None if only one date)
+#             - first_date_dt: First date as datetime object
+#             - second_date_dt: Second date as datetime object (None if only one date)
+#             - first_incomplete: Whether first date is incomplete
+#             - second_incomplete: Whether second date is incomplete
+#             - formatted_range: The formatted date range string
+            
+#     Raises:
+#         ValueError: If the date string cannot be parsed
+#     """
 
-    # First clean the unicode to ascii because serpapi returns some weird unicode characters
-    clean_date_str = unicodedata.normalize('NFKC', date_str).strip()
-    # now clean out any non-ascii characters
-    if not clean_date_str.isascii():
-        for char in clean_date_str:
-            if char.isascii():
-                pass
-            else:
-                _print_if_verbose(f"Found non-ascii character: {char.encode('unicode_escape').decode('ascii')}", verbose)
-                _print_if_verbose(f"Fixable: \u2013\u2014\u2015\u2043\u2212\u23AF\u23E4\u2500\u2501\u2E3A\u2E3B\uFE58\uFE63\uFF0D replace with -", verbose)
-        # replace various unicode dashes with ASCII hyphen
-        clean_date_str = re.sub(r'[\u2013\u2014\u2015\u2043\u2212\u23AF\u23E4\u2500\u2501\u2E3A\u2E3B\uFE58\uFE63\uFF0D]', '-', clean_date_str)
-        # we can fix more here if we ever learn others that need to be fixed.
-    original_date = clean_date_str
+#     # Check if it's a datetime object
+#     if isinstance(date_str, datetime):
+#         first_date_dt = date_str
+#         return {
+#             "original_date": date_str.isoformat(), # this is the complete string representation of the datetime object
+#             "first_date": first_date_dt.strftime("%Y-%m-%d"),
+#             "second_date": None,
+#             "first_date_dt": first_date_dt,
+#             "second_date_dt": None,
+#             "first_incomplete": False,
+#             "second_incomplete": True,
+#             "formatted_range": first_date_dt.strftime("%Y-%m-%d")
+#         }
+    
+#     # First clean the unicode to ascii because serpapi returns some weird unicode characters
+#     clean_date_str = unicodedata.normalize('NFKC', date_str).strip()
+#     # now clean out any non-ascii characters
+#     if not clean_date_str.isascii():
+#         for char in clean_date_str:
+#             if char.isascii():
+#                 pass
+#             else:
+#                 _print_if_verbose(f"Found non-ascii character: {char.encode('unicode_escape').decode('ascii')}", verbose)
+#                 _print_if_verbose(f"Fixable: \u2013\u2014\u2015\u2043\u2212\u23AF\u23E4\u2500\u2501\u2E3A\u2E3B\uFE58\uFE63\uFF0D replace with -", verbose)
+#         # replace various unicode dashes with ASCII hyphen
+#         clean_date_str = re.sub(r'[\u2013\u2014\u2015\u2043\u2212\u23AF\u23E4\u2500\u2501\u2E3A\u2E3B\uFE58\uFE63\uFF0D]', '-', clean_date_str)
+#         # we can fix more here if we ever learn others that need to be fixed.
+#     original_date = clean_date_str
 
-    first_date = None
-    second_date = None
-    first_date_dt = None
-    second_date_dt = None
-    first_incomplete = True
-    second_incomplete = True
-    # test for case like "2020-01-01 - 2020-01-07 or 2020-01-01 2020-01-07"
-    if re.search(r'^\d{4}-\d{2}-\d{2}', clean_date_str):
-        _print_if_verbose(f"Found ISO format date: {clean_date_str}", verbose)
-        # extract the ISO format date
-        first_date = re.search(r'^\d{4}-\d{2}-\d{2}', clean_date_str).group()
-        first_date_dt = parse(first_date)
-        # delete the first date from the string
-        clean_date_str = clean_date_str.replace(first_date, '', 1).strip()
-        # now see if there is another one
-        if re.search(r'\d{4}-\d{2}-\d{2}', clean_date_str):
-            second_date = re.search(r'\d{4}-\d{2}-\d{2}', clean_date_str).group()
-            second_date_dt = parse(second_date)
-            # delete the second date from the string
-            clean_date_str = clean_date_str.replace(second_date, '', 1).strip()
-    # test for case like "11/3/2021 - 11/10/2021"
-    elif re.search(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str):
-        _print_if_verbose(f"Found MM/DD/YYYY format date: {clean_date_str}", verbose)
-        first_date = re.search(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str).group()
-        first_date_dt = parse(first_date)
-        # delete the first date from the string
-        clean_date_str = clean_date_str.replace(first_date, '', 1).strip()
-        # now see if there is another one
-        if re.search(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str):
-            second_date = re.search(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str).group()
-            second_date_dt = parse(second_date)
-            # delete the second date from the string
-            clean_date_str = re.split(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str)[1].strip()
-    # test for case like "Jan 1-7, 2020"
-    elif re.search(r'\d+-\d+', clean_date_str):
-        _print_if_verbose(f"Found DD-DD format date: {clean_date_str}", verbose)
-        parts = re.split(r'\d+-\d+', clean_date_str)
-        splitter = re.search(r'\d+-\d+', clean_date_str).group()
-        front_digits = re.search(r'\d+', splitter).group()
-        back_digits = re.search(r'-\d+', splitter).group().lstrip('-')
-        back_year = re.search(r'\d+$', parts[1]).group()
-        first_date = parts[0] + front_digits + ', ' + back_year
-        second_date = back_digits + parts[1]
-        # still gonna need to clean it if it's like "Jan 1-7" because first and second won't be complete dates
-    # test for case like "Jan 1 - 7, 2020"
-    elif re.search(r'\d+\s*-\s*\d+', clean_date_str):
-        _print_if_verbose(f"Found DD - DD format date: {clean_date_str}", verbose)
-        parts = re.split(r'\d+\s*-\s*\d+', clean_date_str)
-        splitter = re.search(r'\d+\s*-\s*\d+', clean_date_str).group()
-        front_digits = re.search(r'\d+', splitter).group()
-        back_digits = re.search(r'-\s*\d+', splitter).group().lstrip('-')
-        back_year = re.search(r'\d+$', parts[1]).group()
-        first_date = parts[0] + front_digits + ', ' + back_year
-        second_date = back_digits + parts[1]
-        _print_if_verbose(parts, verbose)
-        _print_if_verbose(splitter, verbose)
-        _print_if_verbose(front_digits, verbose)
-        _print_if_verbose(back_digits, verbose)
-        _print_if_verbose(back_year, verbose)
-        _print_if_verbose(first_date, verbose)
-        _print_if_verbose(second_date, verbose)
-    # test for case like "Jan 1-Dec 7, 2020"
-    elif re.search(r'\d+-[a-zA-Z]+', clean_date_str):
-        _print_if_verbose(f"Found DD-MM format date: {clean_date_str}", verbose)
-        parts = re.split(r'\d+-[a-zA-Z]+', clean_date_str)
-        splitter = re.search(r'\d+-[a-zA-Z]+', clean_date_str).group()
-        front_digits = re.search(r'\d+', splitter).group()
-        back_letters = re.search(r'-[a-zA-Z]+', splitter).group().lstrip('-')
-        back_year = re.search(r'\d+$', parts[1]).group()
-        first_date = parts[0] + front_digits + ', ' + back_year
-        second_date = back_letters + parts[1]
-    # search for case like "Jan 1 - Dec 7, 2020"
-    elif re.search(r'\d+\s*-\s*[a-zA-Z]+', clean_date_str):
-        _print_if_verbose(f"Found DD - MM format date: {clean_date_str}", verbose)
-        parts = re.split(r'\d+\s*-\s*[a-zA-Z]+', clean_date_str)
-        splitter = re.search(r'\d+\s*-\s*[a-zA-Z]+', clean_date_str).group()
-        front_digits = re.search(r'\d+', splitter).group()
-        back_letters = re.search(r'-\s*[a-zA-Z]+', splitter).group().lstrip('-').strip()
-        back_year = re.search(r'\d+$', parts[1]).group()
-        first_date = parts[0] + front_digits + ', ' + back_year
-        second_date = back_letters + parts[1]
-    # if we get here we can assume there's only one date.
-    else:
-        _print_if_verbose(f"Found single date: {clean_date_str}", verbose)
-        try:
-            first_date = clean_date_str
-            first_date_dt = parse(clean_date_str)
-        except (ValueError, ParserError):
-            _print_if_verbose(f"Could not parse date string: {clean_date_str}", verbose)
-            first_date = None
-            second_date = None
-            first_date_dt = None
-            second_date_dt = None
-            return {
-                "original_date": original_date,
-                "first_date": None,
-                "second_date": None,
-                "first_date_dt": None,
-                "second_date_dt": None,
-                "first_incomplete": False,
-                "second_incomplete": True,
-                "formatted_range": None
-            }
-    # this is good enough. Probably total overkill. If we get here, we either have one date or we have two (partial)dates.
-    if first_date and not second_date: # easy, if there's only one date, we're done.
-        return {
-            "original_date": original_date,
-            "first_date": first_date,
-            "second_date": None,
-            "first_date_dt": first_date_dt,
-            "second_date_dt": None,
-            "first_incomplete": False,
-            "second_incomplete": True,
-            "formatted_range": first_date_dt.strftime("%Y-%m-%d")
-        }
-    # now we come to the annoying part. we have two partial dates and we have to sort that out.
+#     first_date = None
+#     second_date = None
+#     first_date_dt = None
+#     second_date_dt = None
+#     first_incomplete = True
+#     second_incomplete = True
+#     # test for case like "2020-01-01 - 2020-01-07 or 2020-01-01 2020-01-07"
+#     if re.search(r'^\d{4}-\d{2}-\d{2}', clean_date_str):
+#         _print_if_verbose(f"Found ISO format date: {clean_date_str}", verbose)
+#         # extract the ISO format date
+#         first_date = re.search(r'^\d{4}-\d{2}-\d{2}', clean_date_str).group()
+#         first_date_dt = parse(first_date)
+#         # delete the first date from the string
+#         clean_date_str = clean_date_str.replace(first_date, '', 1).strip()
+#         # now see if there is another one
+#         if re.search(r'\d{4}-\d{2}-\d{2}', clean_date_str):
+#             second_date = re.search(r'\d{4}-\d{2}-\d{2}', clean_date_str).group()
+#             second_date_dt = parse(second_date)
+#             # delete the second date from the string
+#             clean_date_str = clean_date_str.replace(second_date, '', 1).strip()
+#     # test for case like "11/3/2021 - 11/10/2021"
+#     elif re.search(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str):
+#         _print_if_verbose(f"Found MM/DD/YYYY format date: {clean_date_str}", verbose)
+#         first_date = re.search(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str).group()
+#         first_date_dt = parse(first_date)
+#         # delete the first date from the string
+#         clean_date_str = clean_date_str.replace(first_date, '', 1).strip()
+#         # now see if there is another one
+#         if re.search(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str):
+#             second_date = re.search(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str).group()
+#             second_date_dt = parse(second_date)
+#             # delete the second date from the string
+#             clean_date_str = re.split(r'\d{1,2}/\d{1,2}/\d{4}', clean_date_str)[1].strip()
+#     # test for case like "Jan 1-7, 2020"
+#     elif re.search(r'\d+-\d+', clean_date_str):
+#         _print_if_verbose(f"Found DD-DD format date: {clean_date_str}", verbose)
+#         parts = re.split(r'\d+-\d+', clean_date_str)
+#         splitter = re.search(r'\d+-\d+', clean_date_str).group()
+#         front_digits = re.search(r'\d+', splitter).group()
+#         back_digits = re.search(r'-\d+', splitter).group().lstrip('-')
+#         back_year = re.search(r'\d+$', parts[1]).group()
+#         first_date = parts[0] + front_digits + ', ' + back_year
+#         second_date = back_digits + parts[1]
+#         # still gonna need to clean it if it's like "Jan 1-7" because first and second won't be complete dates
+#     # test for case like "Jan 1 - 7, 2020"
+#     elif re.search(r'\d+\s*-\s*\d+', clean_date_str):
+#         _print_if_verbose(f"Found DD - DD format date: {clean_date_str}", verbose)
+#         parts = re.split(r'\d+\s*-\s*\d+', clean_date_str)
+#         splitter = re.search(r'\d+\s*-\s*\d+', clean_date_str).group()
+#         front_digits = re.search(r'\d+', splitter).group()
+#         back_digits = re.search(r'-\s*\d+', splitter).group().lstrip('-')
+#         back_year = re.search(r'\d+$', parts[1]).group()
+#         first_date = parts[0] + front_digits + ', ' + back_year
+#         second_date = back_digits + parts[1]
+#         _print_if_verbose(parts, verbose)
+#         _print_if_verbose(splitter, verbose)
+#         _print_if_verbose(front_digits, verbose)
+#         _print_if_verbose(back_digits, verbose)
+#         _print_if_verbose(back_year, verbose)
+#         _print_if_verbose(first_date, verbose)
+#         _print_if_verbose(second_date, verbose)
+#     # test for case like "Jan 1-Dec 7, 2020"
+#     elif re.search(r'\d+-[a-zA-Z]+', clean_date_str):
+#         _print_if_verbose(f"Found DD-MM format date: {clean_date_str}", verbose)
+#         parts = re.split(r'\d+-[a-zA-Z]+', clean_date_str)
+#         splitter = re.search(r'\d+-[a-zA-Z]+', clean_date_str).group()
+#         front_digits = re.search(r'\d+', splitter).group()
+#         back_letters = re.search(r'-[a-zA-Z]+', splitter).group().lstrip('-')
+#         back_year = re.search(r'\d+$', parts[1]).group()
+#         first_date = parts[0] + front_digits + ', ' + back_year
+#         second_date = back_letters + parts[1]
+#     # search for case like "Jan 1 - Dec 7, 2020"
+#     elif re.search(r'\d+\s*-\s*[a-zA-Z]+', clean_date_str):
+#         _print_if_verbose(f"Found DD - MM format date: {clean_date_str}", verbose)
+#         parts = re.split(r'\d+\s*-\s*[a-zA-Z]+', clean_date_str)
+#         splitter = re.search(r'\d+\s*-\s*[a-zA-Z]+', clean_date_str).group()
+#         front_digits = re.search(r'\d+', splitter).group()
+#         back_letters = re.search(r'-\s*[a-zA-Z]+', splitter).group().lstrip('-').strip()
+#         back_year = re.search(r'\d+$', parts[1]).group()
+#         first_date = parts[0] + front_digits + ', ' + back_year
+#         second_date = back_letters + parts[1]
+#     # if we get here we can assume there's only one date.
+#     else:
+#         _print_if_verbose(f"Found single date: {clean_date_str}", verbose)
+#         try:
+#             first_date = clean_date_str
+#             first_date_dt = parse(clean_date_str)
+#         except (ValueError, ParserError):
+#             _print_if_verbose(f"Could not parse date string: {clean_date_str}", verbose)
+#             first_date = None
+#             second_date = None
+#             first_date_dt = None
+#             second_date_dt = None
+#             return {
+#                 "original_date": original_date,
+#                 "first_date": None,
+#                 "second_date": None,
+#                 "first_date_dt": None,
+#                 "second_date_dt": None,
+#                 "first_incomplete": False,
+#                 "second_incomplete": True,
+#                 "formatted_range": None
+#             }
+#     # this is good enough. Probably total overkill. If we get here, we either have one date or we have two (partial)dates.
+#     if first_date and not second_date: # easy, if there's only one date, we're done.
+#         return {
+#             "original_date": original_date,
+#             "first_date": first_date,
+#             "second_date": None,
+#             "first_date_dt": first_date_dt,
+#             "second_date_dt": None,
+#             "first_incomplete": False,
+#             "second_incomplete": True,
+#             "formatted_range_ymd": first_date_dt.strftime("%Y-%m-%d"),
+#             "formatted_range_mdy": first_date_dt.strftime("%m/%d/%Y")
+#         }
+#     # now we come to the annoying part. we have two partial dates and we have to sort that out.
 
-    if first_date:
-        try:
-            first_date_dt = parse(first_date)
-            first_incomplete = False
-        except (ParserError):
-            pass
-    if second_date:
-        try:
-            second_date_dt = parse(second_date)
-            second_incomplete = False
-        except (ParserError):
-            pass
-    # now we have to sort out the partial dates.
-    if first_incomplete:
-        # for now assume it looks like "Jan 1" or "January 1"
-        # and assume the 4-digit year is at the end of the second string
-        date_year = re.search(r'\d{4}\s*$', second_date).group()
-        first_date = first_date + ', ' + date_year
-        try:
-            first_date_dt = parse(first_date)
-            first_incomplete = False
-        except (ParserError):
-            pass
-    if second_incomplete:
-        # for now assume it looks like "3, 2024"
-        # and assume the month is at the beginning of the first string
-        date_month = re.search(r'[a-zA-Z]{2,}', first_date).group()
-        # yes I know this is totally not locale safe. Someone can add that later maybe.
-        second_date = date_month + ' ' + second_date
-        try:
-            second_date_dt = parse(second_date)
-            second_incomplete = False
-        except (ParserError):
-            pass
-    # now we have pretty much done all we can do, except locale stuff which I am not going to do now.
-    # so we will return what we have.
-    try:
-        formatted_range = make_time_range(first_date_dt, second_date_dt)
-    except:
-        try:
-            formatted_range = first_date_dt.strftime("%Y-%m-%d")
-        except:
-            formatted_range = None
-    return {
-        "original_date": original_date,
-        "first_date": first_date,
-        "second_date": second_date,
-        "first_date_dt": first_date_dt,
-        "second_date_dt": second_date_dt,
-        "first_incomplete": first_incomplete,
-        "second_incomplete": second_incomplete,
-        "formatted_range": formatted_range
-    }
+#     if first_date:
+#         try:
+#             first_date_dt = parse(first_date)
+#             first_incomplete = False
+#         except (ParserError):
+#             pass
+#     if second_date:
+#         try:
+#             second_date_dt = parse(second_date)
+#             second_incomplete = False
+#         except (ParserError):
+#             pass
+#     # now we have to sort out the partial dates.
+#     if first_incomplete:
+#         # for now assume it looks like "Jan 1" or "January 1"
+#         # and assume the 4-digit year is at the end of the second string
+#         date_year = re.search(r'\d{4}\s*$', second_date).group()
+#         first_date = first_date + ', ' + date_year
+#         try:
+#             first_date_dt = parse(first_date)
+#             first_incomplete = False
+#         except (ParserError):
+#             pass
+#     if second_incomplete:
+#         # for now assume it looks like "3, 2024"
+#         # and assume the month is at the beginning of the first string
+#         date_month = re.search(r'[a-zA-Z]{2,}', first_date).group()
+#         # yes I know this is totally not locale safe. Someone can add that later maybe.
+#         second_date = date_month + ' ' + second_date
+#         try:
+#             second_date_dt = parse(second_date)
+#             second_incomplete = False
+#         except (ParserError):
+#             pass
+#     # now we have pretty much done all we can do, except locale stuff which I am not going to do now.
+#     # so we will return what we have.
+#     try:
+#         formatted_range = make_time_range(first_date_dt, second_date_dt)['ymd']
+#     except:
+#         try:
+#             formatted_range = first_date_dt.strftime("%Y-%m-%d")
+#         except:
+#             formatted_range = None
+#     return {
+#         "original_date": original_date,
+#         "first_date": first_date,
+#         "second_date": second_date,
+#         "first_date_dt": first_date_dt,
+#         "second_date_dt": second_date_dt,
+#         "first_incomplete": first_incomplete,
+#         "second_incomplete": second_incomplete,
+#         "formatted_range": formatted_range
+#     }
 
 
 def standard_dict_to_df(standardized_data: List[Dict[str, Any]]) -> pd.DataFrame:
@@ -399,6 +461,36 @@ def sinc_data(num_zero_crossings: int, max_value: float, min_value: float, num_p
     y = y * (max_value - min_value) + min_value
     
     return y
+
+# def file_name_to_class_name(file_name: str) -> str:
+#     """
+#     Convert a snake_case file name to a CamelCase class name.
+#     Special handling for words ending in 'api' - the 'A' will be capitalized.
+    
+#     Args:
+#         file_name (str): The file name in snake_case format (e.g. 'serp_api.py')
+        
+#     Returns:
+#         str: The class name in CamelCase format (e.g. 'SerpApi')
+#     """
+#     # Remove .py extension if present
+#     base_name = file_name.replace('.py', '')
+    
+#     # Split by underscore and process each word
+#     words = base_name.lower().split('_')
+    
+#     # Process each word, handling special case for 'api'
+#     processed_words = []
+#     for word in words:
+#         word = word.capitalize()
+#         if word.endswith('api'):
+#             word[-3] = word[-3].upper()
+#         if word.endswith('py'):
+#             word[-2] = word[-2].capitalize()
+#         processed_words.append(word)
+    
+#     # Join words together
+#     return ''.join(processed_words)
 
 if __name__ == "__main__":
     test_strings = [

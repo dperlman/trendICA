@@ -16,7 +16,7 @@ from typing import Optional
 START_DATE = datetime(2010, 1, 1, 0, 0, 0)  # Fixed start date
 DAY_DURATIONS = [6, 7, 8, 269, 270, 271, 1899, 1900, 1901]  # Test different durations
 APIS_TO_TEST = [
-    'applescript_safari'  # Test with SerpAPI
+    'serpapi'  # Test with SerpAPI
 ]
 DUMMY_API = 'dummy'
 LOG_LEVEL = 'INFO'  # Changed from VERBOSE boolean to logging level
@@ -75,44 +75,70 @@ def id_func(param):
         print(f"✓ {param} days: {records} records, {granularity} granularity")
         return f"{param}days-{records}rec-{granularity}"
 
-@pytest.mark.parametrize("trends_instance", APIS_TO_TEST, indirect=True, ids=id_func)
-@pytest.mark.parametrize("days", DAY_DURATIONS, ids=id_func)
-def test_granularity_consistency(trends_instance: Trends, days: int):
+@pytest.fixture
+def search_results(trends_instance: Trends, days: int):
     """
-    Test that the API returns the same number of records and granularity as dummy_api for a specific duration.
-    This test verifies the default behavior when no granularity is specified.
+    Function-scoped fixture that performs a search using the module-scoped trends_instance.
+    This avoids duplicating the search operation between tests while maintaining test isolation.
     
     Args:
-        trends_instance (Trends): The Trends instance to use for testing
+        trends_instance (Trends): The module-scoped Trends instance to use for the search
         days (int): Number of days to test
+    
+    Returns:
+        Trends: The Trends instance with search results
     """
-    # Get baseline from pre-calculated values
-    dummy_records, dummy_granularity = BASELINES[days]
-    
-    # Test the actual API
     end_date = START_DATE + timedelta(days=days)
-    
     trends_instance.search(
         search_term="test",
         start_date=START_DATE,
         end_date=end_date
     ).standardize_data().make_dataframe()
+    return trends_instance
+
+@pytest.mark.parametrize("trends_instance", APIS_TO_TEST, indirect=True, ids=id_func)
+@pytest.mark.parametrize("days", DAY_DURATIONS, ids=id_func)
+def test_record_count_consistency(search_results: Trends, days: int):
+    """
+    Test that the API returns the same number of records as dummy_api for a specific duration.
+    This test verifies the default behavior when no granularity is specified.
     
-    api_records = len(trends_instance.data)
-    api_granularity = get_index_granularity(trends_instance.df.index)
+    Args:
+        search_results (Trends): The Trends instance with search results
+        days (int): Number of days to test
+    """
+    # Get baseline from pre-calculated values
+    dummy_records, _ = BASELINES[days]
     
-    # Test record count
+    api_records = len(search_results.data)
+    
     assert api_records == dummy_records, \
         f"API returned {api_records} records for {days} days, " \
         f"but dummy_api returned {dummy_records} records"
     
-    # Test granularity
+    print(f"✓ {days} days: {api_records} records")
+
+@pytest.mark.parametrize("trends_instance", APIS_TO_TEST, indirect=True, ids=id_func)
+@pytest.mark.parametrize("days", DAY_DURATIONS, ids=id_func)
+def test_granularity_consistency(search_results: Trends, days: int):
+    """
+    Test that the API returns the same granularity as dummy_api for a specific duration.
+    This test verifies the default behavior when no granularity is specified.
+    
+    Args:
+        search_results (Trends): The Trends instance with search results
+        days (int): Number of days to test
+    """
+    # Get baseline from pre-calculated values
+    _, dummy_granularity = BASELINES[days]
+    
+    api_granularity = get_index_granularity(search_results.df.index)
+    
     assert api_granularity == dummy_granularity, \
         f"API returned {api_granularity} granularity for {days} days, " \
         f"but dummy_api returned {dummy_granularity} granularity"
     
-    # If we get here, both assertions passed
-    print(f"✓ {days} days: {api_records} records, {api_granularity} granularity")
+    print(f"✓ {days} days: {api_granularity} granularity")
 
 @pytest.mark.parametrize("trends_instance", APIS_TO_TEST, indirect=True, ids=id_func)
 @pytest.mark.parametrize("test_case", [

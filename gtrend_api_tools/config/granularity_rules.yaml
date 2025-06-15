@@ -1,0 +1,37 @@
+granularity_rules:
+  h:
+    name: "hourly"
+    max_days: 8
+    max_inclusive: True  # means <= 8 days
+    max_records: 192
+    record_seconds: 3600
+  D:
+    name: "daily"
+    max_days: 270
+    max_inclusive: True  # means <= 270 days
+    max_records: 270
+    record_seconds: 86400
+  W:
+    name: "weekly"
+    max_days: 1900
+    max_inclusive: True  # means <= 1900 days
+    max_records: 1900
+    record_seconds: 604800
+  M:
+    name: "monthly"
+    max_days: null
+    max_inclusive: null
+    max_records: inf
+    record_seconds: 2419200 # minimum, 28 days. Maximum is 2678400, 31 days.
+
+# The complete list of granularities taken from github/sdil87/trendspy/src/trendspytimeframe_utils.py
+# although I disagree with their non-inclusive max limits
+# (i.e. I say <= 270 days instead of <270 days
+# because we can certainly get search results that have 270 day records in them)
+# <5 hours: 1 minute
+# <36 hours: 8 minutes
+# <72 hours: 16 minutes
+# <8 days: 1 hour
+# <270 days: 1 day
+# <1900 days: 1 week
+# <inf days: 1 month (as calendar months!!!)

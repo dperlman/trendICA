@@ -12,6 +12,7 @@ api_modes:
   - name: "trendspy"
     description: "trendspy only"
     api_order:
+      - trendspy
 
   - name: "serpapi"
     description: "serpapi"
@@ -36,7 +37,7 @@ api_modes:
   - name: "dummy"
     description: "dummy data, no api call"
     api_order:
-      - dummy
+      - dummy_api
 
   - name: "smart_tpy"
     description: "trendspy:serpapi:serpwow:searchapi"
@@ -68,19 +69,3 @@ api_modes:
       - serpapi
       - serpwow
       - searchapi
-
-granularity_rules:
-  - name: "hourly"
-    max_days: 8
-    max_inclusive: True  # means <= 8 days
-    code: "h"
-  - name: "daily"
-    max_days: 270
-    max_inclusive: True  # means <= 270 days
-    code: "D"
-  - name: "weekly"
-    max_days: 1900
-    max_inclusive: True  # means <= 1900 days
-    code: "W"
-  - name: "monthly"
-    code: "MS"  # No max_days needed since it's the last level

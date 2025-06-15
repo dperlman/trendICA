@@ -10,12 +10,16 @@ from bs4 import BeautifulSoup
 from .base_classes import API_Call
 import pandas as pd
 from ..utils import _print_if_verbose
-from .api_utils import make_time_range
+from .api_utils import make_time_range, standardize_date_str
 import json
 import unicodedata
 
 class AuthenticationError(Exception):
     """Raised when Google authentication fails."""
+    pass
+
+class JavaScriptError(Exception):
+    """Raised when JavaScript execution fails."""
     pass
 
 # Global search terms by name
@@ -241,63 +245,71 @@ class ApplescriptSafari(API_Call):
         """
         self.print_func(f"get_element_by_text: get_container_table: {get_container_table}")
 
-        try:
-            # Get the JavaScript code
-            escaped_js = get_escaped_js_for_text_search_v3(search_text, query_selector or "*", self.print_func, click=click, get_container_table=get_container_table)
-            
-            self.print_func("get_element_by_text: about to run AppleScript")
-            # AppleScript to execute JavaScript
-            script = f'''
-            tell application "Safari"
-                do JavaScript "{escaped_js}" in current tab of front window
-            end tell
-            '''
-            
+        # Get the JavaScript code
+        escaped_js = get_escaped_js_for_text_search_v3(search_text, query_selector or "*", self.print_func, click=click, get_container_table=get_container_table)
+        
+        # AppleScript to execute JavaScript
+        script = f'''
+        tell application "Safari"
+            do JavaScript "{escaped_js}" in current tab of front window
+        end tell
+        '''
+        for attempt in range(1, self.poll_max_tries + 1):
+            self.print_func(f"get_element_by_text: attempt {attempt} of {self.poll_max_tries}")
             # Run the AppleScript
+            self.print_func("get_element_by_text: about to run AppleScript")
             result = applescript.run(script)
             self.print_func(f"get_element_by_text: finished applescript:")
             self.print_func(f"get_element_by_text: result.code: {result.code}")
             self.print_func(f"get_element_by_text: result.err: {result.err}")
             
+            data = None
             if result.code == 0:
                 # Parse the JSON response
                 try:
                     response = result.out
                     data = json.loads(response)
-                    
                     if isinstance(data, list):
-                        self.print_func(f"Found {len(data)} elements")
+                        # This is the case where we found the elements
+                        self.print_func(f"get_element_by_text: Found {len(data)} elements.")
                         for element in data:
-                            self.print_func(f"{element['domPath']}")
+                            self.print_func(f"get_element_by_text: {element['domPath']}")
                         return data
                     elif isinstance(data, dict):
-                        if data.get('matchType') == 'debug':
-                            self.print_func("Debug response:")
-                            self.print_func(f"  Element count: {data.get('elementCount')}")
-                            self.print_func(f"  Search text: {data.get('searchText')}")
-                            self.print_func(f"  Document ready: {data.get('documentReady')}")
-                            self.print_func(f"  URL: {data.get('url')}")
-                            self.print_func(f"  Title: {data.get('title')}")
-                            # Return the full data including fullSource for saving to debug file
-                            return data
-                        elif data.get('matchType') == 'error':
-                            self.print_func(f"JavaScript error in get_element_by_text: {data.get('error')}")
-                            self.print_func(f"Stack trace: {data.get('stack')}")
-                            
-                        return []
+                        # This is the case where we received debug from the JavaScript
+                        self.print_func(f"get_element_by_text: Error or Debug response.")
                     else:
-                        self.print_func(f"Unexpected response type: {type(data)}")
-                        return []
+                        self.print_func(f"get_element_by_text: Unexpected response: {data}")
                 except json.JSONDecodeError as e:
-                    self.print_func(f"Error parsing JSON response: {str(e)}")
-                    return []
+                    self.print_func(f"get_element_by_text: Error parsing JSON response: {str(e)}")
+                    self.print_func(f"get_element_by_text: Response: {response}")
             else:
-                self.print_func(f"Error executing JavaScript: {result.err}")
-                return []
-                
-        except Exception as e:
-            self.print_func(f"Error in get_element_by_text: {str(e)}")
-            return []
+                self.print_func(f"get_element_by_text: Error executing JavaScript: {result.err}")
+            self.print_func(f"get_element_by_text: Trying again after {self.poll_wait_time} seconds...")
+            time.sleep(self.poll_wait_time)
+            
+        # This is the case where we received debug from the JavaScript
+        if not data:
+            # This is the case where we received an error from the JavaScript
+            self.print_func("get_element_by_text: No data found")
+            raise
+        elif data.get('matchType') == 'debug':
+            # self.print_func("Debug response:")
+            # self.print_func(f"  Element count: {data.get('elementCount')}")
+            # self.print_func(f"  Search text: {data.get('searchText')}")
+            # self.print_func(f"  Document ready: {data.get('documentReady')}")
+            # self.print_func(f"  URL: {data.get('url')}")
+            # self.print_func(f"  Title: {data.get('title')}")
+            raise JavaScriptError(f"get_element_by_text: After all {self.poll_max_tries} attempts we only had a debug response.")
+        elif data.get('matchType') == 'error':
+            # This is the case where we received an error from the JavaScript
+            self.print_func(f"JavaScript error in get_element_by_text: {data.get('error')}")
+            self.print_func(f"Stack trace: {data.get('stack')}")
+            raise JavaScriptError(f"get_element_by_text: After all {self.poll_max_tries} attempts we only had an error response.")
+        else:
+            # We don't know what happened but it was bad
+            raise JavaScriptError(f"Unknown error in get_element_by_text")
+
 
     def parse_trends_page(self, search_terms: Union[str, List[str]]) -> str:
         """
@@ -565,12 +577,12 @@ class ApplescriptSafari(API_Call):
                 
             # Parse the date
             date_str = cells[0].text.strip()
-            try:
-                # Remove any special characters and parse the date
-                date_str = date_str.replace('\u202a', '').replace('\u202c', '')  # Remove LTR/RTL marks
-                date = datetime.strptime(date_str, '%b %d, %Y')
-            except ValueError:
-                continue  # Skip rows with invalid dates
+            # try:
+            #     # Remove any special characters and parse the date
+            #     date_str = date_str.replace('\u202a', '').replace('\u202c', '')  # Remove LTR/RTL marks
+            #     date = datetime.strptime(date_str, '%b %d, %Y')
+            # except ValueError:
+            #     continue  # Skip rows with invalid dates
                 
             # Get values for each column (except the date column)
             values = []
@@ -588,7 +600,7 @@ class ApplescriptSafari(API_Call):
                     
             if values:  # Only add entries that have valid values
                 standardized_data.append({
-                    'date': date.strftime('%Y-%m-%d'),
+                    'date': standardize_date_str(date_str)['formatted_range']['ymd'],
                     'values': values
                 })
         
@@ -791,190 +803,30 @@ def get_escaped_js_for_text_search_v3(
     return minified_js
     
 
-
-# def open_url_in_safari(url: str, print_func: Optional[Callable] = None, load_delay: int = 0) -> None:
-#     """
-#     Open a URL in the current Safari window using AppleScript.
-#     Always uses the front window and creates a new tab.
-    
-#     Args:
-#         url (str): The URL to open
-#         print_func (Optional[Callable]): Function to use for printing debug information
-#         load_delay (int): Number of seconds to wait after opening URL for page to load. Default is 2 seconds.
-#     """
-#     print_func = print_func or _print_if_verbose
-    
-#     try:
-#         print_func(f"Preparing to open URL: {url}")
-#         # AppleScript to open URL in new tab of front window, with fallback to open location
-#         script = f'''
-#         tell application "Safari"
-#             activate
-#             try
-#                 tell window 1
-#                     set current tab to make new tab with properties {{URL:"{url}"}}
-#                 end tell
-#             on error
-#                 open location "{url}"
-#             end try
-#         end tell
-#         '''
-#         print_func("Executing AppleScript...")
-        
-#         # Run the AppleScript
-#         result = applescript.run(script)
-        
-#         if result.code == 0:
-#             print_func(f"Successfully opened URL: {url}")
-#             # Add a delay to ensure the page loads
-#             print_func(f"Waiting {load_delay} seconds for page to load...")
-#             time.sleep(load_delay)
-#         else:
-#             print_func(f"Error opening URL: {result.err}")
-#             print_func(f"Error code: {result.code}")
-            
-#     except Exception as e:
-#         print_func(f"Error executing AppleScript: {str(e)}")
-#         print_func(f"Error type: {type(e)}")
-#         raise
-
-#########################################################
-#
-#
-#
-#
-#
-#
-#
-#
-#
-#########################################################
-# Probably don't need this, but leaving it here for now
-#########################################################
-
-def trends_applescript_safari(
-    search_terms: Union[str, List[str]],
-    api_key: Optional[str] = None,
-    proxy: Optional[str] = None,
-    verbose: bool = False,
-    print_func: Optional[Callable] = None,
-    auth_email: Optional[str] = None,
-    **kwargs
-) -> Dict[str, Any]:
-    """
-    Get Google Trends data using AppleScript to control Safari.
-    
-    Args:
-        search_terms (Union[str, List[str]]): The search term(s) to get trends for
-        api_key (Optional[str]): API key for authentication
-        proxy (Optional[str]): Proxy to use for requests
-        verbose (bool): Whether to print debug information
-        print_func (Optional[Callable]): Function to use for printing debug information
-        auth_email (Optional[str]): Email to use for Google authentication
-        **kwargs: Additional keyword arguments
-        
-    Returns:
-        Dict[str, Any]: The trends data
-    """
-    print_func = print_func or _print_if_verbose
-    
-    config = CONFIRM_CONFIGS['google_trends']
-    url_template = config['url']
-    
-    print_func("\nStarting trends_applescript_safari")
-    print_func(f"Search terms: {search_terms}")
-    print_func(f"Date range: {start_date} to {end_date}")
-    print_func(f"URL template: {url_template}")
-    
-    # Join search terms with commas and URL encode
-    query = quote(",".join(search_terms))
-    print_func(f"Encoded query: {query}")
-    
-    # Handle date range
-    time_range = make_time_range(start_date, end_date)
-    date_range = quote(time_range.ymd)
-    print_func(f"Encoded date range: {date_range}")
-    
-    # Construct the URL using format
-    try:
-        formatted_url = url_template.format(date_range=date_range, query=query, geo='us')
-        print_func(f"\nTesting URL: {formatted_url}")
-    except KeyError as e:
-        print_func(f"Error formatting URL: {str(e)}")
-        print_func(f"URL template: {url_template}")
-        print_func(f"date_range: {date_range}")
-        print_func(f"query: {query}")
-        return
-    except Exception as e:
-        print_func(f"Unexpected error formatting URL: {str(e)}")
-        return
-    
-    #########################################################
-    # Open URL in Safari
-    #########################################################
-    print_func("Attempting to open URL in Safari...")
-    open_url_in_safari(formatted_url, print_func)
-    #########################################################
-    
-    # Check for expected elements on the page
-    confirm_terms = config['terms']
-    print_func("\nChecking for expected elements...")
-    if not confirm_page(confirm_terms=confirm_terms, print_func=print_func, max_tries=3, wait_time=2):
-        print_func("Warning: Some expected elements were not found on the page")
-    
-    # Parse the page
-    print_func("\nParsing page content...")
-    html = parse_trends_page(search_terms, print_func)
-    print_func(html)
-
-def search_applescript_safari(
-    search_term: Union[str, List[str]],
-    start_date: Optional[Union[str, datetime]] = None,
-    end_date: Optional[Union[str, datetime]] = None,
-    **kwargs
-) -> Union[pd.DataFrame, Dict[str, Any]]:
-    """
-    Search Google Trends using Safari and AppleScript.
-    
-    Args:
-        search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
-        start_date (Optional[Union[str, datetime]]): Start date for the search
-        end_date (Optional[Union[str, datetime]]): End date for the search
-        **kwargs: Additional keyword arguments passed to API_Call
-        
-    Returns:
-        Union[pd.DataFrame, Dict[str, Any]]: Standardized search results
-    """
-    safari = ApplescriptSafari(**locals())
-    return safari.search(search_term, start_date, end_date).standardize_data().data
-
 if __name__ == "__main__":
     # Define test configurations
     test_configs = [
         {
             "name": "Google Trends Test",
-            "url": "https://trends.google.com/trends/explore?date={date_range}&geo=US&q={query}&hl=en",
             "search_terms": ["car", "truck"],
             "start_date": "2024-04-30",
-            "end_date": "2024-05-30",
-            "result_parser": parse_trends_page
+            "end_date": "2024-05-30"
         }
     ]
     
-    # Check Google authentication
-    if not get_google_auth(print_func=print):
-        print("\nGoogle authentication check failed. Exiting...")
-        sys.exit(1)
-
     # Run each test configuration
     for config in test_configs:
         print(f"\n{'='*50}")
         print(f"Running {config['name']}")
         print(f"{'='*50}")
         
-        trends_applescript_safari(
-            search_terms=config["search_terms"],
+        safari = ApplescriptSafari(print_func=print)
+        result = safari.search(
+            search_term=config["search_terms"],
             start_date=config["start_date"],
             end_date=config["end_date"]
-        )
+        ).standardize_data().data
+        
+        print("\nResults:")
+        print(result)
 
