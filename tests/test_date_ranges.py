@@ -10,7 +10,7 @@ parent_dir = os.path.dirname(current_dir)
 
 # Import directly from the source file
 sys.path.insert(0, os.path.join(parent_dir, 'gtrend_api_tools'))
-from date_ranges import DateRange
+from APIs.date_ranges import DateRange
 
 def test_init():
     """Test DateRange initialization"""

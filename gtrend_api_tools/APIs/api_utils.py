@@ -8,7 +8,7 @@ import unicodedata
 import re
 from types import SimpleNamespace
 from dateutil.parser import parse, ParserError
-from utils import load_config, _print_if_verbose, get_index_granularity
+from gtrend_api_tools.utils import load_config, _print_if_verbose, get_index_granularity
 import numpy as np
 
 def load_api_config() -> Dict[str, Any]:

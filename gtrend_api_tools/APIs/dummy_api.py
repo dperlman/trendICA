@@ -1,9 +1,9 @@
 from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
 import pandas as pd
-from utils import calculate_search_granularity
-from base_classes import API_Call
-from api_utils import sinc_data
+from gtrend_api_tools.utils import calculate_search_granularity
+from gtrend_api_tools.APIs.base_classes import API_Call
+from gtrend_api_tools.APIs.api_utils import sinc_data
 import numpy as np
 
 class DummyApi(API_Call):

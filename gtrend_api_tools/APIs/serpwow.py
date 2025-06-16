@@ -2,8 +2,8 @@ import time
 import requests
 from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
-from .api_utils import make_time_range, standardize_date_str
-from .base_classes import API_Call
+from gtrend_api_tools.APIs.date_ranges import DateRange
+from gtrend_api_tools.APIs.base_classes import API_Call
 import pandas as pd
 
 class Serpwow(API_Call):
@@ -59,9 +59,9 @@ class Serpwow(API_Call):
         
         try:
             # Parse time range if provided
-            time_range = make_time_range(start_date, end_date)
-            time_period_min = time_range['mdy'].split()[0]
-            time_period_max = time_range['mdy'].split()[1]
+            dr = DateRange(start_date, end_date)
+            time_period_min = dr.formatted_range_mdy.split()[0]
+            time_period_max = dr.formatted_range_mdy.split()[1]
             
             # Set up the request parameters
             params = {
@@ -122,8 +122,9 @@ class Serpwow(API_Call):
         # Transform the data into the standardized format
         self.data = []
         for entry in timeline:
+            dr = DateRange(entry['date_formatted'])
             standardized_entry = {
-                'date': standardize_date_str(entry['date_formatted'])['formatted_range']['ymd'],
+                'date': dr.formatted_range_ymd,
                 'values': [
                     {
                         'value': item['value'],
@@ -156,5 +157,5 @@ def search_serpwow(
     Returns:
         Union[pd.DataFrame, Dict[str, Any]]: Standardized search results
     """
-    serp = SerpWow(**locals())
+    serp = Serpwow(**locals())
     return serp.search(search_term, start_date, end_date).standardize_data().data 

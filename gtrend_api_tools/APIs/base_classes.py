@@ -1,9 +1,9 @@
 from typing import Union, List, Optional, Dict, Any, Callable
 from datetime import datetime
 import pandas as pd
-from utils import _print_if_verbose, load_config
-from api_utils import standard_dict_to_df
-from date_ranges import DateRange
+from gtrend_api_tools.utils import _print_if_verbose, load_config
+from gtrend_api_tools.APIs.api_utils import standard_dict_to_df
+from gtrend_api_tools.APIs.date_ranges import DateRange
 
 class SearchSpec(DateRange):
     """

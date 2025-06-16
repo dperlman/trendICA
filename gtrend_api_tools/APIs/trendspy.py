@@ -2,8 +2,9 @@ import time
 import requests
 from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
-from .api_utils import change_tor_identity, make_time_range, standardize_date_str
-from .base_classes import API_Call
+from gtrend_api_tools.APIs.api_utils import change_tor_identity
+from gtrend_api_tools.APIs.date_ranges import DateRange
+from gtrend_api_tools.APIs.base_classes import API_Call
 import pandas as pd
 
 class TrendsPy(API_Call):
@@ -107,9 +108,9 @@ class TrendsPy(API_Call):
             }
             # Parse time range if provided
             if start_date or end_date:
-                time_range = make_time_range(start_date, end_date)
-                params['timeframe'] = time_range['ymd']
-                self.print_func(f"  Time range: {time_range['ymd']}")
+                time_range = DateRange.from_dt((start_date, end_date))
+                params['timeframe'] = time_range.formatted_range_ymd
+                self.print_func(f"  Time range: {time_range.formatted_range_ymd}")
             else:
                 self.print_func("  Time range: default")
             
@@ -153,8 +154,9 @@ class TrendsPy(API_Call):
         # Transform the data into the standardized format
         self.data = []
         for date, values in self.raw_data.items():
+            date_range = DateRange.from_str(date)
             standardized_entry = {
-                'date': standardize_date_str(date)['formatted_range']['ymd'],
+                'date': date_range.formatted_range_ymd,
                 'values': [
                     {
                         'value': value,

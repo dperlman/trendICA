@@ -1,18 +1,19 @@
 import applescript
 from urllib.parse import quote
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import sys
 from typing import Optional, Callable, List, Dict, Any, Union, Literal
 import rjsmin
 import html
 from bs4 import BeautifulSoup
-from .base_classes import API_Call
+from gtrend_api_tools.APIs.base_classes import API_Call
 import pandas as pd
-from ..utils import _print_if_verbose
-from .api_utils import make_time_range, standardize_date_str
+from gtrend_api_tools.utils import _print_if_verbose
+from gtrend_api_tools.APIs.date_ranges import DateRange
 import json
 import unicodedata
+
 
 class AuthenticationError(Exception):
     """Raised when Google authentication fails."""
@@ -509,13 +510,17 @@ class ApplescriptSafari(API_Call):
         query = quote(",".join(search_term if isinstance(search_term, list) else [search_term]))
         self.print_func(f"Query: {query}")
         
-        # Handle date range
-        time_range = make_time_range(start_date, end_date)
-        date_range = quote(time_range['ymd'])
-        self.print_func(f"Encoded date range: {date_range}")
+        # Parse time range if provided
+        dr = DateRange(start_date, end_date)
+        params = {
+            'date_range': dr.formatted_range_ymd,
+            'geo': self.geo,
+            'query': query
+        }
+        self.print_func(f"  Time range: {dr.formatted_range_ymd}")
         
         # Construct the URL
-        formatted_url = url_template.format(date_range=date_range, query=query, geo=self.geo)
+        formatted_url = url_template.format(**params)
         self.print_func(f"Opening URL: {formatted_url}")
         
         # Open URL in Safari, creating window only if needed
@@ -599,10 +604,11 @@ class ApplescriptSafari(API_Call):
                     continue  # Skip invalid values
                     
             if values:  # Only add entries that have valid values
-                standardized_data.append({
-                    'date': standardize_date_str(date_str)['formatted_range']['ymd'],
+                standardized_entry = {
+                    'date': DateRange(date_str).formatted_range_ymd,
                     'values': values
-                })
+                }
+                standardized_data.append(standardized_entry)
         
         if not standardized_data:
             raise ValueError("No valid data found in table")

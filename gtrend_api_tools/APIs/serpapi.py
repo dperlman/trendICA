@@ -4,8 +4,8 @@ from datetime import datetime
 from typing import Union, List, Optional, Dict, Any
 import pandas as pd
 import unicodedata
-from .api_utils import make_time_range, standardize_date_str
-from .base_classes import API_Call
+from gtrend_api_tools.APIs.date_ranges import DateRange
+from gtrend_api_tools.APIs.base_classes import API_Call, SearchSpec
 
 class SerpApi(API_Call):
     def __init__(
@@ -15,14 +15,14 @@ class SerpApi(API_Call):
         **kwargs
     ):
         """
-        Initialize the SerpAPI class.
+        Initialize the SerpApi class.
         
         Args:
             api_key (str): Your SerpAPI API key
             api_endpoint (str): The SerpAPI endpoint URL
             **kwargs: Additional keyword arguments passed to API_Call
         """
-        super().__init__(api_key=api_key, **kwargs)
+        super().__init__(api_key=api_key, api_endpoint=api_endpoint, **kwargs)
         self.base_url = api_endpoint
 
     def search(
@@ -32,7 +32,7 @@ class SerpApi(API_Call):
         end_date: Optional[Union[str, datetime]] = None
     ) -> 'SerpApi':
         """
-        Search Google Trends using the SerpApi.
+        Search Google Trends using SerpApi.
         
         Args:
             search_term (Union[str, List[str]]): The search term(s) to look up in Google Trends
@@ -42,29 +42,26 @@ class SerpApi(API_Call):
         Returns:
             SerpApi: Returns self for method chaining
         """
-        # Store search specification
-        self.search_spec = {
-            'terms': search_term,
-            'start_date': start_date,
-            'end_date': end_date,
-            'geo': self.geo,
-            'language': self.language,
-            'cat': self.cat,
-            'gprop': self.gprop,
-            'region': self.region
-        }
+        # Create SearchSpec instance
+        self.search_spec = SearchSpec(
+            terms=search_term,
+            start_date=start_date,
+            end_date=end_date,
+            granularity=self.granularity,
+            verbose=self.verbose
+        )
         
         self.print_func(f"Sending SerpApi search request:")
-        self.print_func(f"  Search term: {search_term}")
-        self.print_func(f"  Start date: {start_date if start_date else 'default'}")
-        self.print_func(f"  End date: {end_date if end_date else 'default'}")
+        self.print_func(f"  Search term: {self.search_spec.term_string}")
+        self.print_func(f"  Start date: {self.search_spec.start_date}")
+        self.print_func(f"  End date: {self.search_spec.end_date}")
         
         try:
             # Set up the request parameters
             params = {
                 'api_key': self.api_key,
                 'engine': 'google_trends',
-                'q': search_term,
+                'q': self.search_spec.term_string,
                 'geo': self.geo,
                 'hl': self.language
             }
@@ -77,13 +74,17 @@ class SerpApi(API_Call):
             if hasattr(self, 'gprop') and self.gprop is not None:
                 params['gprop'] = self.gprop
             
-            # Parse time range if provided
-            time_range = make_time_range(start_date, end_date)
-            params['date'] = time_range['ymd']
-            self.print_func(f"  Time range: {time_range['ymd']}")
-            
+            # Use the SearchSpec's date range
+            params['date'] = self.search_spec.formatted_range_ymd
+            self.print_func(f"  Time range: {self.search_spec.formatted_range_ymd}")
+
+            # Prepare the request to print the full URL
+            req = requests.Request('GET', self.base_url, params=params)
+            prepared = req.prepare()
+            self.print_func(f"  Full request URL: {prepared.url}")
+
             # Make the API call using requests
-            response = requests.get(self.base_url, params=params)
+            response = requests.Session().send(prepared)
             response.raise_for_status()  # Raise an exception for bad status codes
             self.raw_data = response.json()
             
@@ -125,7 +126,7 @@ class SerpApi(API_Call):
         self.data = []
         for entry in timeline:
             standardized_entry = {
-                'date': standardize_date_str(entry['date'])['formatted_range']['ymd'],
+                'date': DateRange(entry['date']).formatted_range_ymd,
                 'values': [
                     {
                         'value': item['extracted_value'],

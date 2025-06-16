@@ -1,13 +1,13 @@
 import time
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Union, List, Optional, Dict, Any
 import pandas as pd
 import unicodedata
-from .api_utils import make_time_range, standardize_date_str
-from .base_classes import API_Call
+from gtrend_api_tools.APIs.date_ranges import DateRange
+from gtrend_api_tools.APIs.base_classes import API_Call
 
-class SerpApiPy(API_Call):
+class SerpApiPython(API_Call):
     def __init__(
         self,
         api_key: str,
@@ -34,7 +34,7 @@ class SerpApiPy(API_Call):
         search_term: Union[str, List[str]],
         start_date: Optional[Union[str, datetime]] = None,
         end_date: Optional[Union[str, datetime]] = None
-    ) -> 'SerpApiPy':
+    ) -> 'SerpApiPython':
         """
         Search Google Trends using the SerpAPI library.
         
@@ -82,9 +82,9 @@ class SerpApiPy(API_Call):
                 params['gprop'] = self.gprop
             
             # Parse time range if provided
-            time_range = make_time_range(start_date, end_date)
-            params['date'] = time_range['ymd']
-            self.print_func(f"  Time range: {time_range['ymd']}")
+            dr = DateRange(start_date, end_date)
+            params['time'] = dr.formatted_range_ymd
+            self.print_func(f"  Time range: {dr.formatted_range_ymd}")
             
             # Make the API call
             search = self.search_client(params)
@@ -105,7 +105,7 @@ class SerpApiPy(API_Call):
             self.print_func(f"  Search failed: {str(e)}")
             raise
 
-    def standardize_data(self) -> 'SerpApiPy':
+    def standardize_data(self) -> 'SerpApiPython':
         """
         Standardize the raw data into a common format.
         Transforms the interest_over_time data into a list of dictionaries with date and values.
@@ -126,7 +126,7 @@ class SerpApiPy(API_Call):
         self.data = []
         for entry in timeline:
             standardized_entry = {
-                'date': standardize_date_str(entry['date'])['formatted_range']['ymd'],
+                'date': DateRange(entry['date']).formatted_range_ymd,
                 'values': [
                     {
                         'value': item['extracted_value'],
@@ -159,5 +159,5 @@ def search_serpapi(
     Returns:
         Union[pd.DataFrame, Dict[str, Any]]: Standardized search results
     """
-    serp = SerpApiPy(**locals())
+    serp = SerpApiPython(**locals())
     return serp.search(search_term, start_date, end_date).standardize_data().data 

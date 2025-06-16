@@ -1,0 +1,12 @@
+include LICENSE
+include README.md
+include pyproject.toml
+recursive-include gtrend_api_tools/config *.yaml
+recursive-include gtrend_api_tools/tests *.py
+recursive-exclude gtrend_api_tools/tests __pycache__
+recursive-exclude gtrend_api_tools/tests *.pyc
+recursive-exclude gtrend_api_tools/tests *.pyo
+recursive-exclude gtrend_api_tools/tests *.pyd
+recursive-exclude gtrend_api_tools/tests .pytest_cache
+recursive-exclude gtrend_api_tools/tests .coverage
+recursive-exclude gtrend_api_tools/tests htmlcov 
