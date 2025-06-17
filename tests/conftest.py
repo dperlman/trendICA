@@ -1,3 +1,6 @@
+"""
+Main test configuration and fixture exports for gtrend_api_tools.
+"""
 import os
 import sys
 import pytest
@@ -7,6 +10,11 @@ from datetime import datetime, timedelta
 # Add the project root directory to the Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
+
+# Import and re-export fixtures from submodules
+from .fixtures.api_fixtures import API_TO_TEST, VERBOSE, api_key, api_instance
+from .fixtures.data_fixtures import test_terms, test_dates
+from .fixtures.config_fixtures import test_config, available_apis
 
 # Test configuration
 API_TO_TEST = 'dummy_api'  # Specify which API to test
@@ -90,4 +98,20 @@ def api_instance(api_key, available_apis, request):
     module = import_module(f'gtrend_api_tools.APIs.{api_name}')
     ApiClass = getattr(module, api_utils.get_api_class_name(f'{api_name}.py'))
     
-    return ApiClass(api_key=api_key, verbose=VERBOSE) 
+    return ApiClass(api_key=api_key, verbose=VERBOSE)
+
+def pytest_configure(config):
+    """Print the current API being tested before running tests."""
+    print(f"\nRunning tests with API: {API_TO_TEST}\n")
+
+# Re-export all fixtures
+__all__ = [
+    'API_TO_TEST',
+    'VERBOSE',
+    'api_key',
+    'api_instance',
+    'test_terms',
+    'test_dates',
+    'test_config',
+    'available_apis'
+] 

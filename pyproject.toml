@@ -37,4 +37,9 @@ serpapi = ["google-search-results"]
 all = ["stem", "trendspy", "google-search-results"]
 
 [tool.setuptools]
-packages = ["gtrend_api_tools"] 
+packages = ["gtrend_api_tools"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v" 

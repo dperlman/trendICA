@@ -1,6 +1,6 @@
 import pytest
 from datetime import datetime
-from conftest import API_TO_TEST
+from .conftest import API_TO_TEST
 
 @pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
 def test_api_search_history(api_instance, test_terms, test_dates):
