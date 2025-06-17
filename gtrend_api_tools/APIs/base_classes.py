@@ -30,19 +30,29 @@ class SearchSpec(DateRange):
                              Defaults to 'D'.
             verbose (bool): Whether to print debug information
         """
+        # Load config
+        self.config = load_config()
+        
+        # Check for false-like values
+        if not terms:
+            raise ValueError("Search terms cannot be None or empty.")
+        if not start_date:
+            raise ValueError("Start date cannot be None or empty.")
+        if not end_date:
+            raise ValueError("End date cannot be None or empty.")
+
         # Initialize DateRange first with dates
         super().__init__(start_date=start_date, end_date=end_date, granularity=granularity, verbose=verbose)
         
         # Handle terms
-        if terms is not None:
-            if isinstance(terms, str):
-                self.terms = [term.strip() for term in terms.split(',')]
-            else:
-                self.terms = terms
-            self.term_string = ','.join(self.terms)
+        if isinstance(terms, str):
+            self.terms = [term.strip() for term in terms.split(',')]
         else:
-            self.terms = []
-            self.term_string = ''
+            self.terms = terms
+        # Check if the number of terms is greater than the max_terms parameter
+        if len(self.terms) > self.config['api_parameters']['all']['max_terms']:
+            raise ValueError(f"Number of search terms ({len(self.terms)}) exceeds the maximum allowed ({self.config['api_parameters']['all']['max_terms']})")
+        self.term_string = ','.join(self.terms)
 
 class API_Call:
     """

@@ -42,14 +42,10 @@ class SerpApi(API_Call):
         Returns:
             SerpApi: Returns self for method chaining
         """
-        # Create SearchSpec instance
-        self.search_spec = SearchSpec(
-            terms=search_term,
-            start_date=start_date,
-            end_date=end_date,
-            granularity=self.granularity,
-            verbose=self.verbose
-        )
+        # Call base class search method first to handle terms and dates
+        super().search(search_term, start_date, end_date)
+        # Get the processed search spec for dates
+        spec = self.search_spec
         
         self.print_func(f"Sending SerpApi search request:")
         self.print_func(f"  Search term: {self.search_spec.term_string}")

@@ -8,6 +8,10 @@ tor:
   control_port: 9151
   proxy_port: 9150
 
+api_parameters:
+  all:
+    max_terms: 5
+
 api_modes:
   - name: "trendspy"
     description: "trendspy only"

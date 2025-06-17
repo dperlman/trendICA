@@ -69,13 +69,9 @@ class DummyApi(API_Call):
         Returns:
             DummyApi: Returns self for method chaining
         """
-        # Convert search_term to list if it's a string
-        if isinstance(search_term, str):
-            search_term = [term.strip() for term in search_term.split(',')]
-            
+
         # Call base class search method first to handle terms and dates
         super().search(search_term, start_date, end_date)
-        
         # Get the processed search spec for dates
         spec = self.search_spec
             
@@ -91,7 +87,7 @@ class DummyApi(API_Call):
         if fill_value == "sinc":
             # Generate N sinc waves (one for each term)
             term_values = []
-            for i, term in enumerate(search_term):
+            for i, term in enumerate(spec.terms):
                 # Each term gets a different number of zero crossings
                 num_zero_crossings = i + 2  # First term gets 2, second gets 3, etc.
                 values = sinc_data(num_zero_crossings, 100, 0, days)
@@ -111,7 +107,7 @@ class DummyApi(API_Call):
                             'query': term,
                             'value': float(term_values[i][j])  # Convert numpy float to Python float
                         }
-                        for j, term in enumerate(search_term)
+                        for j, term in enumerate(spec.terms)
                     ]
                 }
                 self.data.append(entry)
@@ -125,7 +121,7 @@ class DummyApi(API_Call):
                             'query': term,
                             'value': fill_value
                         }
-                        for term in search_term
+                        for term in spec.terms
                     ]
                 }
                 self.data.append(entry)

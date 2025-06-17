@@ -469,15 +469,11 @@ class ApplescriptSafari(API_Call):
         Returns:
             ApplescriptSafari: Returns self for method chaining
         """
-        # Store search specification
-        self.search_spec = {
-            'terms': search_term,
-            'start_date': start_date,
-            'end_date': end_date,
-            'geo': self.geo,
-            'language': self.language
-        }
-        
+        # Call base class search method first to handle terms and dates
+        super().search(search_term, start_date, end_date)
+        # Get the processed search spec for dates
+        spec = self.search_spec
+
         # Create auth session if it doesn't exist
         if self._auth_session is None:
             self.print_func("Creating new GoogleAuthSession")
@@ -569,7 +565,7 @@ class ApplescriptSafari(API_Call):
         rows = table.find_all('tr')[1:]  # Skip header row
         
         # Get search terms from search_spec
-        search_terms = self.search_spec['terms']
+        search_terms = self.search_spec.terms
         if not isinstance(search_terms, list):
             search_terms = [search_terms]
             

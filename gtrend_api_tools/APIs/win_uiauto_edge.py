@@ -46,6 +46,11 @@ class WinUiautoEdge(API_Call):
         Returns:
             WinUiautoEdge: Returns self for method chaining
         """
+        # Call base class search method first to handle terms and dates
+        super().search(search_term, start_date, end_date)
+        # Get the processed search spec for dates
+        spec = self.search_spec
+        
         self.print_func(f"Sending WinUiautoEdge search request:")
         self.print_func(f"  Search term: {search_term}")
         self.print_func(f"  Start date: {start_date if start_date else 'default'}")

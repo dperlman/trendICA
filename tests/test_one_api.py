@@ -1,143 +1,142 @@
 import pytest
-import os
-import sys
-from datetime import datetime, timedelta
+from datetime import datetime
+from conftest import API_TO_TEST
 
-# Configuration - Set the API to test here
-API_TO_TEST = 'serpapi'  # Change this to test different APIs (e.g., 'serpapi', 'applescript_safari')
-VERBOSE = True
-TERM1 = "hamburger"
-TERM2 = "pizza"
-TERM3 = "hot dog"
-
-# Get the absolute path to the gtrend_api_tools directory
-current_dir = os.path.dirname(os.path.abspath(__file__))
-parent_dir = os.path.dirname(current_dir)
-source_dir = os.path.join(parent_dir, 'gtrend_api_tools')
-apis_dir = os.path.join(source_dir, 'APIs')
-
-# Add all necessary directories to Python path
-sys.path.insert(0, parent_dir)
-sys.path.insert(0, source_dir)
-sys.path.insert(0, apis_dir)
-
-# Import directly from source files using full paths
-import importlib.util
-
-def import_from_file(module_name, file_path):
-    spec = importlib.util.spec_from_file_location(module_name, file_path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-# Import the modules we need in dependency order
-utils = import_from_file('utils', os.path.join(source_dir, 'utils.py'))
-api_utils = import_from_file('api_utils', os.path.join(apis_dir, 'api_utils.py'))
-base_classes = import_from_file('base_classes', os.path.join(apis_dir, 'base_classes.py'))
-
-# Import the specific API module
-api_module = import_from_file(API_TO_TEST, os.path.join(apis_dir, f'{API_TO_TEST}.py'))
-
-# Get the classes/functions we need
-_print_if_verbose = utils._print_if_verbose
-load_config = utils.load_config
-API_Call = base_classes.API_Call
-ApiClass = getattr(api_module, api_utils.get_api_class_name(f'{API_TO_TEST}.py'))
-
-# Load config
-config = load_config()
-api_key = config.get('api_keys', {}).get(API_TO_TEST)
-
-# Load available APIs config
-available_apis_path = os.path.join(source_dir, 'config', 'available_apis.yaml')
-with open(available_apis_path, 'r') as f:
-    import yaml
-    available_apis = yaml.safe_load(f)
-
-@pytest.fixture
-def api_instance():
-    """Create an API instance for testing."""
-    # Check if API is paid and requires an API key
-    if available_apis.get(API_TO_TEST, {}).get('type') == 'paid' and not api_key:
-        pytest.skip(f"No API key found for {API_TO_TEST} in config")
-    return ApiClass(api_key=api_key, verbose=VERBOSE)
-
-def test_api_single_term(api_instance):
-    """Test API with a single search term."""
-    # Test with a 7-day range
-    start_date = "2024-01-01"
-    end_date = "2024-01-07"
-    search_term = TERM1
-    
-    result = api_instance.search(search_term, start_date, end_date).standardize_data().make_dataframe()
-    
-    # Check raw_data and data
-    #assert len(result.raw_data['interest_over_time']['timeline_data']) == 7  # 7 days
-    assert len(result.data) == 7
-    assert all(len(entry['values']) == 1 for entry in result.data)  # One term per entry
-    
-    # Check dataframe
-    df = result.dataframe
-    assert len(df) == 7  # 7 days
-    assert len(df.columns) == 1  # One term
-    assert df.index[0] == datetime.strptime(start_date, "%Y-%m-%d")
-    assert df.index[-1] == datetime.strptime(end_date, "%Y-%m-%d")
-
-def test_api_multiple_terms(api_instance):
-    """Test API with multiple search terms."""
-    start_date = "2024-01-01"
-    end_date = "2024-01-10"
-    search_terms = [TERM1, TERM2, TERM3]
-    
-    result = api_instance.search(search_terms, start_date, end_date).standardize_data().make_dataframe()
-    
-    # Check raw_data and data
-    #assert len(result.raw_data['interest_over_time']['timeline_data']) == 10  # 10 days
-    assert len(result.data) == 10
-    assert all(len(entry['values']) == 3 for entry in result.data)  # Three terms per entry
-    
-    # Check dataframe
-    df = result.dataframe
-    assert len(df) == 10  # 10 days
-    assert len(df.columns) == 3  # Three terms
-    assert df.index[0] == datetime.strptime(start_date, "%Y-%m-%d")
-    assert df.index[-1] == datetime.strptime(end_date, "%Y-%m-%d")
-
-def test_api_datetime_input(api_instance):
-    """Test API with datetime objects as input."""
-    start_date = datetime(2024, 1, 1)
-    end_date = datetime(2024, 1, 3)
-    search_term = TERM1
-    
-    result = api_instance.search(search_term, start_date, end_date).standardize_data().make_dataframe()
-    
-    # Check raw_data and data
-    #assert len(result.raw_data['interest_over_time']['timeline_data']) == 3  # 3 days
-    assert len(result.data) == 3
-    assert all(len(entry['values']) == 1 for entry in result.data)
-    
-    # Check dataframe
-    df = result.dataframe
-    assert len(df) == 3  # 3 days
-    assert len(df.columns) == 1  # One term
-    assert df.index[0] == start_date
-    assert df.index[-1] == end_date
-
-def test_api_search_history(api_instance):
+@pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
+def test_api_search_history(api_instance, test_terms, test_dates):
     """Test that search history is properly maintained."""
-    start_date_1 = "2024-01-01"
-    end_date_1 = "2024-01-02"
-    start_date_2 = "2024-01-03"
-    end_date_2 = "2024-01-04"
-    
+    start_date_1 = test_dates['short_range']['start']
+    end_date_1 = test_dates['short_range']['end']
+    start_date_2 = test_dates['medium_range']['start']
+    end_date_2 = test_dates['medium_range']['end']
+
     # First search
-    result1 = api_instance.search(TERM1, start_date_1, end_date_1).standardize_data().make_dataframe()
+    api_instance.search(test_terms['term1'], start_date_1, end_date_1).standardize_data()
+    assert api_instance.data
     assert len(api_instance.search_history) == 1
-    assert api_instance.search_history[0].terms == [TERM1]
-    assert api_instance.search_history[0].start_date == start_date_1
-    assert api_instance.search_history[0].end_date == end_date_1
+    assert api_instance.search_history[0].terms == [test_terms['term1']]
     
+    # Check DataFrame conversion for first search
+    api_instance.make_dataframe()
+    assert not api_instance.dataframe.empty
+    assert test_terms['term1'].replace(' ', '_').lower() in api_instance.dataframe.columns
+
     # Second search
-    result2 = api_instance.search(TERM2, start_date_2, end_date_2).standardize_data().make_dataframe()
+    api_instance.search(test_terms['term2'], start_date_2, end_date_2).standardize_data()
+    assert api_instance.data
     assert len(api_instance.search_history) == 2
-    assert api_instance.search_history[1].terms == [TERM2]
+    assert api_instance.search_history[1].terms == [test_terms['term2']]
+    
+    # Check DataFrame conversion for second search
+    api_instance.make_dataframe()
+    assert not api_instance.dataframe.empty
+    assert test_terms['term2'].replace(' ', '_').lower() in api_instance.dataframe.columns
+
+    # Third search
+    api_instance.search(test_terms['term3'], start_date_2, end_date_2).standardize_data()
+    assert api_instance.data
+    assert len(api_instance.search_history) == 3
+    assert api_instance.search_history[2].terms == [test_terms['term3']]
+    
+    # Check DataFrame conversion for third search
+    api_instance.make_dataframe()
+    assert not api_instance.dataframe.empty
+    assert test_terms['term3'].replace(' ', '_').lower() in api_instance.dataframe.columns
+
+@pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
+def test_api_single_term(api_instance, test_terms, test_dates):
+    """Test API with a single search term."""
+    search_term = test_terms['term1']
+    start_date = test_dates['short_range']['start']
+    end_date = test_dates['short_range']['end']
+    api_instance.search(search_term, start_date, end_date).standardize_data()
+    
+    # Check standardized data structure
+    assert api_instance.data
+    assert all(len(entry['values']) == 1 for entry in api_instance.data)  # One term per entry
+    assert all(entry['values'][0]['query'] == search_term for entry in api_instance.data)
+    
+    # Check DataFrame conversion
+    api_instance.make_dataframe()
+    assert not api_instance.dataframe.empty
+    assert len(api_instance.dataframe.columns) == 1  # One column for the single term
+    assert search_term.replace(' ', '_').lower() in api_instance.dataframe.columns
+
+@pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
+def test_api_multiple_terms(api_instance, test_terms, test_dates):
+    """Test API with multiple search terms."""
+    search_terms = [test_terms['term1'], test_terms['term2'], test_terms['term3']]
+    start_date = test_dates['short_range']['start']
+    end_date = test_dates['short_range']['end']
+    api_instance.search(search_terms, start_date, end_date).standardize_data()
+    
+    # Check standardized data structure
+    assert api_instance.data
+    assert all(len(entry['values']) == len(search_terms) for entry in api_instance.data)  # All terms per entry
+    # Check that all search terms are present in each entry
+    for entry in api_instance.data:
+        entry_queries = {value['query'] for value in entry['values']}
+        assert all(term in entry_queries for term in search_terms)
+    
+    # Check DataFrame conversion
+    api_instance.make_dataframe()
+    assert not api_instance.dataframe.empty
+    assert len(api_instance.dataframe.columns) == len(search_terms)  # One column per term
+    # Check that all search terms are present as columns (with sanitization)
+    sanitized_terms = [term.replace(' ', '_').lower() for term in search_terms]
+    assert all(term in api_instance.dataframe.columns for term in sanitized_terms)
+
+@pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
+def test_api_datetime_input(api_instance, test_terms, test_dates):
+    """Test API with datetime objects as input."""
+    search_term = test_terms['term1']
+    start_date = test_dates['datetime_range']['start']
+    end_date = test_dates['datetime_range']['end']
+    api_instance.search(search_term, start_date, end_date).standardize_data()
+    
+    # Check standardized data structure
+    assert api_instance.data
+    # Check date range
+    dates = [datetime.strptime(entry['date'], "%Y-%m-%d") for entry in api_instance.data]
+    assert min(dates) >= start_date
+    assert max(dates) <= end_date
+    
+    # Check DataFrame conversion
+    api_instance.make_dataframe()
+    assert not api_instance.dataframe.empty
+    assert api_instance.dataframe.index[0].to_pydatetime() >= start_date
+    assert api_instance.dataframe.index[-1].to_pydatetime() <= end_date
+
+# Test: should raise ValueError when terms is None
+@pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
+def test_api_raises_when_terms_none(api_instance, test_dates):
+    start_date = test_dates['short_range']['start']
+    end_date = test_dates['short_range']['end']
+    with pytest.raises(ValueError):
+        api_instance.search(None, start_date, end_date)
+
+# Test: should raise ValueError when start_date is None
+@pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
+def test_api_raises_when_start_date_none(api_instance, test_terms, test_dates):
+    search_term = test_terms['term1']
+    end_date = test_dates['short_range']['end']
+    with pytest.raises(ValueError):
+        api_instance.search(search_term, None, end_date)
+
+# Test: should raise ValueError when end_date is None
+@pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
+def test_api_raises_when_end_date_none(api_instance, test_terms, test_dates):
+    search_term = test_terms['term1']
+    start_date = test_dates['short_range']['start']
+    with pytest.raises(ValueError):
+        api_instance.search(search_term, start_date, None)
+
+# Test: should raise ValueError when the number of search terms is 6
+@pytest.mark.parametrize('api_key,api_instance', [(API_TO_TEST, API_TO_TEST)], indirect=True)
+def test_api_raises_when_too_many_terms(api_instance, test_dates, test_config):
+    max_terms = test_config['api_parameters']['all']['max_terms']
+    search_terms = [f"term{i}" for i in range(max_terms + 1)]
+    start_date = test_dates['short_range']['start']
+    end_date = test_dates['short_range']['end']
+    with pytest.raises(ValueError):
+        api_instance.search(search_terms, start_date, end_date)

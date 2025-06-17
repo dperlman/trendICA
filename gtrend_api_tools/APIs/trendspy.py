@@ -80,17 +80,10 @@ class TrendsPy(API_Call):
         Returns:
             TrendsPy: Returns self for method chaining
         """
-        # Store search specification
-        self.search_spec = {
-            'terms': search_term,
-            'start_date': start_date,
-            'end_date': end_date,
-            'geo': self.geo,
-            'language': self.language,
-            'cat': self.cat,
-            'gprop': self.gprop,
-            'region': self.region
-        }
+        # Call base class search method first to handle terms and dates
+        super().search(search_term, start_date, end_date)
+        # Get the processed search spec for dates
+        spec = self.search_spec
         
         self.print_func(f"Sending TrendsPy search request:")
         self.print_func(f"  Search term: {search_term}")

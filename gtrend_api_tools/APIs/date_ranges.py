@@ -544,6 +544,8 @@ def make_clean_date_str(date_str: str) -> str:
     """
     fixable_dashes_escaped = '\u2013\u2014\u2015\u2043\u2212\u23AF\u23E4\u2500\u2501\u2E3A\u2E3B\uFE58\uFE63\uFF0D'
     fixable_dashes = '– — ― ⁄ − ⎯ ⎴ ⎵ ⸺ ⸻ ﹘ ﹣ －'
+    fixable_nonprinting_escaped = '\u200B\u200C\u200D\u200E\u200F\u202A\u202B\u202C\u202D\u202E\u202F\u2060\u2061\u2062\u2063\u2064\u2065\u2066\u2067\u2068\u2069\u206A\u206B\u206C\u206D\u206E\u206F\u20F0\u20F1\u20F2\u20F3\u20F4\u20F5\u20F6\u20F7\u20F8\u20F9\u20FA\u20FB\u20FC\u20FD\u20FE\u20FF'
+
     date_str_unicode_normalized = unicodedata.normalize('NFKC', date_str).strip()
     if not date_str_unicode_normalized.isascii():
         for char in date_str_unicode_normalized:
@@ -551,5 +553,10 @@ def make_clean_date_str(date_str: str) -> str:
                 pass
             elif char in fixable_dashes_escaped:
                 print(f"Swapping '-' for non-ascii character: {char} ({char.encode('unicode_escape').decode('ascii')})")
+            elif char in fixable_nonprinting_escaped:
+                print(f"Swapping non-printing character: {char.encode('unicode_escape').decode('ascii')}")
     date_str_unicode_normalized = re.sub(f'[{fixable_dashes_escaped}]', '-', date_str_unicode_normalized)
+    date_str_unicode_normalized = re.sub(f'[{fixable_nonprinting_escaped}]', ' ', date_str_unicode_normalized)
+    date_str_unicode_normalized = re.sub(r'\s+', ' ', date_str_unicode_normalized)
+    date_str_unicode_normalized = date_str_unicode_normalized.strip()
     return date_str_unicode_normalized
